@@ -1,5 +1,5 @@
 import { TokenId } from "@proto-kit/library";
-import { Provable, Struct } from "o1js";
+import { Field, Provable, Struct } from "o1js";
 
 /**
  * Represents a pair of tokens, ordered by their token ids.
@@ -16,5 +16,12 @@ export class TokenPair extends Struct({
       new TokenPair({ tokenAId: tokenA, tokenBId: tokenB }),
       new TokenPair({ tokenAId: tokenB, tokenBId: tokenA })
     );
+  }
+
+  static override toFields(v: TokenPair) {
+    let fields = super.toFields(v);
+    // inserts an extra value at to fields to have a different key from xyk
+    fields.push(Field(1));
+    return fields;
   }
 }

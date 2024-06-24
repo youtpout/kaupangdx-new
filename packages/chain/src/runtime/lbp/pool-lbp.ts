@@ -1,0 +1,38 @@
+import { Balance, TokenId } from "@proto-kit/library";
+import { Provable, PublicKey, Struct, UInt64 } from "o1js";
+
+/**
+ * Standard fee amount for a LBP pool
+ */
+export class FeeLBP extends Struct({
+  fee0: UInt64,
+  fee1: UInt64
+}) {
+}
+
+
+/**
+ * Pool information for LBP
+ */
+export class PoolLBP extends Struct({
+  /// owner of the pool after `CreatePoolOrigin` creates it
+  owner: PublicKey,
+  /// start block
+  start: UInt64,
+  /// end  block
+  end: UInt64,
+  /// initial weight of the asset_a where the minimum value is 0 (equivalent to 0% weight), and the maximum value is 100_000_000 (equivalent to 100% weight)
+  initialWeight: UInt64,
+  /// final weights of the asset_a where the minimum value is 0 (equivalent to 0% weight), and the maximum value is 100_000_000 (equivalent to 100% weight)
+  finalWeight: UInt64,
+  /// weight curve
+  weightCurve: UInt64,
+  /// standard fee amount
+  fee: FeeLBP,
+  /// person that receives the fee
+  feeCollector: PublicKey,
+  /// repayment target of the accumulated asset in fee collectors account, when this target is reached fee drops from 20% to fee
+  repayTarget: UInt64
+
+}) {
+}
