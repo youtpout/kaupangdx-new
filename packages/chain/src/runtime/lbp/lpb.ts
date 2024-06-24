@@ -13,6 +13,10 @@ import { TokenPair } from "./token-pair";
 import { LPTokenId } from "./lp-token-id";
 import { MAX_TOKEN_ID, TokenRegistry } from "../token-registry";
 import { Balances } from "../balances";
+import { FeeLBP, PoolLBP, WeightCurveType } from "./pool-lbp";
+
+
+
 
 export const errors = {
   tokensNotDistinct: () => `Tokens must be different`,
@@ -30,6 +34,7 @@ export const errors = {
 export const placeholderPoolValue = Bool(true);
 
 export const MAX_PATH_LENGTH = 3;
+export const MAX_WEIGHT: O1UInt64 = O1UInt64.from(100_000_000);
 export class TokenIdPath extends Struct({
   path: Provable.Array(TokenId, MAX_PATH_LENGTH),
 }) {
@@ -49,7 +54,7 @@ export interface LBPConfig {
 @runtimeModule()
 export class LBP extends RuntimeModule<LBPConfig> {
   // all existing pools in the system
-  @state() public pools = StateMap.from<PoolKey, Bool>(PoolKey, Bool);
+  @state() public pools = StateMap.from<PoolKey, PoolLBP>(PoolKey, PoolLBP);
 
   /**
    * Provide access to the underlying Balances runtime to manipulate balances
@@ -67,7 +72,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
   }
 
   /**
-   * Creates an XYK pool if one doesnt exist yet, and if the creator has
+   * Creates an LBP pool if one doesnt exist yet, and if the creator has
    * sufficient balance to do so.
    *
    * @param creator
@@ -78,10 +83,19 @@ export class LBP extends RuntimeModule<LBPConfig> {
    */
   public createPool(
     creator: PublicKey,
+    owner: PublicKey,
     tokenAId: TokenId,
     tokenBId: TokenId,
     tokenAAmount: Balance,
-    tokenBAmount: Balance
+    tokenBAmount: Balance,
+    start: O1UInt64,
+    end: O1UInt64,
+    initialWeight: O1UInt64,
+    finalWeight: O1UInt64,
+    weightCurve: WeightCurveType,
+    fee: FeeLBP,
+    feeCollector: PublicKey,
+    repayTarget: O1UInt64
   ) {
     const tokenPair = TokenPair.from(tokenAId, tokenBId);
     const poolKey = PoolKey.fromTokenPair(tokenPair);
@@ -114,121 +128,11 @@ export class LBP extends RuntimeModule<LBPConfig> {
       creator,
       initialLPTokenSupply
     );
-    this.pools.set(poolKey, placeholderPoolValue);
+
+    const poolLBP = new PoolLBP({ owner, start, end, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget });
+    this.pools.set(poolKey, poolLBP);
   }
 
-  /**
-   * Provides liquidity to an existing pool, if the pool exists and the
-   * provider has sufficient balance. Additionally mints LP tokens for the provider.
-   *
-   * @param provider
-   * @param tokenAId
-   * @param tokenBId
-   * @param amountA
-   * @param amountBLimit
-   */
-  public addLiquidity(
-    provider: PublicKey,
-    tokenAId: TokenId,
-    tokenBId: TokenId,
-    tokenAAmount: Balance,
-    tokenBAmountLimit: Balance
-  ) {
-    const tokenPair = TokenPair.from(tokenAId, tokenBId);
-    // tokenAId = tokenPair.tokenAId;
-    // tokenBId = tokenPair.tokenBId;
-    const poolKey = PoolKey.fromTokenPair(tokenPair);
-    const poolDoesExists = this.poolExists(poolKey);
-    const amountANotZero = tokenAAmount.greaterThan(Balance.from(0));
-
-    const reserveA = this.balances.getBalance(tokenAId, poolKey);
-    const reserveB = this.balances.getBalance(tokenBId, poolKey);
-    const reserveANotZero = reserveA.greaterThan(Balance.from(0));
-    const adjustedReserveA = Balance.from(
-      Provable.if(reserveANotZero, reserveA.value, Balance.from(1).value)
-    );
-
-    // TODO: why do i need Balance.from on the `amountA` argument???
-    const amountB = Balance.from(tokenAAmount)
-      .mul(reserveB)
-      .div(adjustedReserveA);
-    const isAmountBLimitSufficient =
-      tokenBAmountLimit.greaterThanOrEqual(amountB);
-
-    const lpTokenId = LPTokenId.fromTokenPair(tokenPair);
-    const lpTokenTotalSupply = this.balances.getTotalSupply(lpTokenId);
-
-    // TODO: ensure tokens are provided in the right order, not just ordered by the TokenPair
-    // otherwise the inputs for the following math will be in the wrong order
-    const lpTokensToMint = lpTokenTotalSupply
-      .mul(tokenAAmount)
-      .div(adjustedReserveA);
-
-    assert(poolDoesExists, errors.poolDoesNotExist());
-    assert(amountANotZero, errors.amountAIsZero());
-    assert(reserveANotZero, errors.reserveAIsZero());
-    assert(isAmountBLimitSufficient, errors.amountBLimitInsufficient());
-
-    this.balances.transfer(tokenAId, provider, poolKey, tokenAAmount);
-    this.balances.transfer(tokenBId, provider, poolKey, amountB);
-    this.balances.mintAndIncrementSupply(lpTokenId, provider, lpTokensToMint);
-  }
-
-  public removeLiquidity(
-    provider: PublicKey,
-    tokenAId: TokenId,
-    tokenBId: TokenId,
-    lpTokenAmount: Balance,
-    // TODO: change to min/max limits everywhere
-    tokenAAmountLimit: Balance,
-    tokenBLAmountLimit: Balance
-  ) {
-    const tokenPair = TokenPair.from(tokenAId, tokenBId);
-    tokenAId = tokenPair.tokenAId;
-    tokenBId = tokenPair.tokenBId;
-    const poolKey = PoolKey.fromTokenPair(tokenPair);
-    const poolDoesExists = this.poolExists(poolKey);
-    const lpTokenId = LPTokenId.fromTokenPair(tokenPair);
-    const lpTokenTotalSupply = this.balances.getTotalSupply(lpTokenId);
-    const lpTokenTotalSupplyIsZero = lpTokenTotalSupply.equals(Balance.from(0));
-    const adjustedLpTokenTotalSupply = Balance.from(
-      Provable.if(
-        lpTokenTotalSupplyIsZero,
-        Balance.from(1).value,
-        lpTokenTotalSupply.value
-      )
-    );
-    const reserveA = this.balances.getBalance(tokenAId, poolKey);
-    const reserveB = this.balances.getBalance(tokenBId, poolKey);
-
-    const tokenAAmount = Balance.from(lpTokenAmount)
-      .mul(reserveA)
-      .div(adjustedLpTokenTotalSupply);
-    const tokenBAmount = Balance.from(lpTokenAmount)
-      .mul(reserveB)
-      .div(adjustedLpTokenTotalSupply);
-
-    const isTokenAAmountLimitSufficient =
-      tokenAAmountLimit.greaterThanOrEqual(tokenAAmount);
-    const isTokenBAmountLimitSufficient =
-      tokenBLAmountLimit.greaterThanOrEqual(tokenBAmount);
-
-    Provable.log("limits", {
-      tokenAAmount,
-      tokenBAmount,
-      tokenAAmountLimit,
-      tokenBLAmountLimit,
-    });
-
-    assert(poolDoesExists, errors.poolDoesNotExist());
-    assert(lpTokenTotalSupplyIsZero.not(), errors.lpTokenSupplyIsZero());
-    assert(isTokenAAmountLimitSufficient, errors.amountALimitInsufficient());
-    assert(isTokenBAmountLimitSufficient, errors.amountBLimitInsufficient());
-
-    this.balances.transfer(tokenAId, poolKey, provider, tokenAAmount);
-    this.balances.transfer(tokenBId, poolKey, provider, tokenBAmount);
-    this.balances.burnAndDecrementSupply(lpTokenId, provider, lpTokenAmount);
-  }
 
   public calculateTokenOutAmountFromReserves(
     reserveIn: Balance,
@@ -366,50 +270,25 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
   @runtimeMethod()
   public createPoolSigned(
+    owner: PublicKey,
     tokenAId: TokenId,
     tokenBId: TokenId,
     tokenAAmount: Balance,
-    tokenBAmount: Balance
+    tokenBAmount: Balance,
+    start: O1UInt64,
+    end: O1UInt64,
+    initialWeight: O1UInt64,
+    finalWeight: O1UInt64,
+    weightCurve: WeightCurveType,
+    fee: FeeLBP,
+    feeCollector: PublicKey,
+    repayTarget: O1UInt64
   ) {
     const creator = this.transaction.sender.value;
-    this.createPool(creator, tokenAId, tokenBId, tokenAAmount, tokenBAmount);
+    this.createPool(creator, owner, tokenAId, tokenBId, tokenAAmount, tokenBAmount, start, end, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget);
   }
 
-  @runtimeMethod()
-  public addLiquiditySigned(
-    tokenAId: TokenId,
-    tokenBId: TokenId,
-    tokenAAmount: Balance,
-    tokenBAmountLimit: Balance
-  ) {
-    const provider = this.transaction.sender.value;
-    this.addLiquidity(
-      provider,
-      tokenAId,
-      tokenBId,
-      tokenAAmount,
-      tokenBAmountLimit
-    );
-  }
 
-  @runtimeMethod()
-  public removeLiquiditySigned(
-    tokenAId: TokenId,
-    tokenBId: TokenId,
-    lpTokenAmount: Balance,
-    tokenAAmountLimit: Balance,
-    tokenBLAmountLimit: Balance
-  ) {
-    const provider = this.transaction.sender.value;
-    this.removeLiquidity(
-      provider,
-      tokenAId,
-      tokenBId,
-      lpTokenAmount,
-      tokenAAmountLimit,
-      tokenBLAmountLimit
-    );
-  }
 
   @runtimeMethod()
   public sellPathSigned(

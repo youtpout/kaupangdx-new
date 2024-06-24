@@ -10,6 +10,9 @@ export class FeeLBP extends Struct({
 }) {
 }
 
+export class WeightCurveType extends UInt64 {
+  static linear = UInt64.from(1);
+}
 
 /**
  * Pool information for LBP
@@ -26,7 +29,7 @@ export class PoolLBP extends Struct({
   /// final weights of the asset_a where the minimum value is 0 (equivalent to 0% weight), and the maximum value is 100_000_000 (equivalent to 100% weight)
   finalWeight: UInt64,
   /// weight curve
-  weightCurve: UInt64,
+  weightCurve: WeightCurveType,
   /// standard fee amount
   fee: FeeLBP,
   /// person that receives the fee
