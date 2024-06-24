@@ -14,7 +14,8 @@ import { LPTokenId } from "./lp-token-id";
 import { MAX_TOKEN_ID, TokenRegistry } from "../token-registry";
 import { Balances } from "../balances";
 import { FeeLBP, PoolLBP, WeightCurveType } from "./pool-lbp";
-
+import { FeeCollectorAssetKey } from "./fee-collector-asset-key";
+import { FeeCollectorAsset } from "./fee-collector-asset";
 
 
 
@@ -28,6 +29,7 @@ export const errors = {
   reserveAIsZero: () => `Reserve A must be greater than zero`,
   lpTokenSupplyIsZero: () => `LP token supply is zero`,
   amountOutIsInsufficient: () => `Amount out is insufficient`,
+  feeCollectorWithAssetAlreadyUsed: () => `Not more than one fee collector per asset id`,
 };
 
 // we need a placeholder pool value until protokit supports value-less dictonaries or state arrays
@@ -55,6 +57,7 @@ export interface LBPConfig {
 export class LBP extends RuntimeModule<LBPConfig> {
   // all existing pools in the system
   @state() public pools = StateMap.from<PoolKey, PoolLBP>(PoolKey, PoolLBP);
+  @state() public feeCollectorWithAsset = StateMap.from<FeeCollectorAssetKey, Bool>(FeeCollectorAssetKey, Bool);
 
   /**
    * Provide access to the underlying Balances runtime to manipulate balances
@@ -70,6 +73,11 @@ export class LBP extends RuntimeModule<LBPConfig> {
   public poolExists(poolKey: PoolKey) {
     return this.pools.get(poolKey).isSome;
   }
+
+  public feeCollectorWithAssetExists(feeCollectorAssetKey: FeeCollectorAssetKey) {
+    return this.feeCollectorWithAsset.get(feeCollectorAssetKey).isSome;
+  }
+
 
   /**
    * Creates an LBP pool if one doesnt exist yet, and if the creator has
@@ -99,12 +107,16 @@ export class LBP extends RuntimeModule<LBPConfig> {
   ) {
     const tokenPair = TokenPair.from(tokenAId, tokenBId);
     const poolKey = PoolKey.fromTokenPair(tokenPair);
+    const feeCollectorAsset = FeeCollectorAsset.from(feeCollector, tokenAId);
+    const feeCollectorAssetKey = FeeCollectorAssetKey.fromFeeCollectorAsset(feeCollectorAsset);
     const areTokensDistinct = tokenAId.equals(tokenBId).not();
     const poolDoesNotExist = this.poolExists(poolKey).not();
+    const feeCollectorAssetDoesNotExist = this.feeCollectorWithAssetExists(feeCollectorAssetKey).not();
 
     // TODO: add check for minimal liquidity in pools
     assert(areTokensDistinct, errors.tokensNotDistinct());
     assert(poolDoesNotExist, errors.poolAlreadyExists());
+    assert(feeCollectorAssetDoesNotExist, errors.feeCollectorWithAssetAlreadyUsed());
 
     // transfer liquidity from the creator to the pool
     this.balances.transfer(tokenAId, creator, poolKey, tokenAAmount);
@@ -131,6 +143,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
     const poolLBP = new PoolLBP({ owner, start, end, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget });
     this.pools.set(poolKey, poolLBP);
+    this.feeCollectorWithAsset.set(feeCollectorAssetKey, Bool(true));
   }
 
 
