@@ -13,7 +13,7 @@ import { TokenPair } from "./token-pair";
 import { LPTokenId } from "./lp-token-id";
 import { MAX_TOKEN_ID, TokenRegistry } from "../token-registry";
 import { Balances } from "../balances";
-import { FeeLBP, PoolLBP, WeightCurveType } from "./pool-lbp";
+import { AssetPair, FeeLBP, PoolLBP, WeightCurveType } from "./pool-lbp";
 import { FeeCollectorAssetKey } from "./fee-collector-asset-key";
 import { FeeCollectorAsset } from "./fee-collector-asset";
 
@@ -105,7 +105,6 @@ export class LBP extends RuntimeModule<LBPConfig> {
    */
   public createPool(
     creator: PublicKey,
-    owner: PublicKey,
     tokenAId: TokenId,
     tokenBId: TokenId,
     tokenAAmount: Balance,
@@ -168,7 +167,8 @@ export class LBP extends RuntimeModule<LBPConfig> {
       initialLPTokenSupply
     );
 
-    const poolLBP = new PoolLBP({ owner, start, end, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget });
+    let assets = new AssetPair({ tokenAId, tokenBId });
+    const poolLBP = new PoolLBP({ owner: creator, start, end, assets, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget });
     this.pools.set(poolKey, poolLBP);
     this.feeCollectorWithAsset.set(feeCollectorAssetKey, Bool(true));
   }
@@ -310,7 +310,6 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
   @runtimeMethod()
   public createPoolSigned(
-    owner: PublicKey,
     tokenAId: TokenId,
     tokenBId: TokenId,
     tokenAAmount: Balance,
@@ -325,7 +324,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
     repayTarget: O1UInt64
   ) {
     const creator = this.transaction.sender.value;
-    this.createPool(creator, owner, tokenAId, tokenBId, tokenAAmount, tokenBAmount, start, end, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget);
+    this.createPool(creator, tokenAId, tokenBId, tokenAAmount, tokenBAmount, start, end, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget);
   }
 
 

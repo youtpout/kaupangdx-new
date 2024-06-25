@@ -14,6 +14,12 @@ export class WeightCurveType extends UInt64 {
   static linear = UInt64.from(1);
 }
 
+export class AssetPair extends Struct({
+  tokenAId: TokenId,
+  tokenBId: TokenId
+}) {
+}
+
 /**
  * Pool information for LBP
  */
@@ -24,6 +30,8 @@ export class PoolLBP extends Struct({
   start: UInt64,
   /// end  block
   end: UInt64,
+  /// Asset ids of the tokens (accumulating asset, sold asset) 
+  assets: AssetPair,
   /// initial weight of the asset_a where the minimum value is 0 (equivalent to 0% weight), and the maximum value is 100_000_000 (equivalent to 100% weight)
   initialWeight: UInt64,
   /// final weights of the asset_a where the minimum value is 0 (equivalent to 0% weight), and the maximum value is 100_000_000 (equivalent to 100% weight)
