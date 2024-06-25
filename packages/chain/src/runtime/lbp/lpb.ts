@@ -33,7 +33,8 @@ export const errors = {
   InvalidBlockRange: () => `Invalid block range`,
   MaxSaleDurationExceeded: () => `Duration of the LBP sale should not exceed 2 weeks`,
   InvalidWeight: () => `Invalid weight`,
-  FeeAmountInvalid: () => `Invalid fee amount`
+  FeeAmountInvalid: () => `Invalid fee amount`,
+  SaleIsNotRunning: () => `Sale is not running`
 };
 
 // we need a placeholder pool value until protokit supports value-less dictonaries or state arrays
@@ -93,6 +94,15 @@ export class LBP extends RuntimeModule<LBPConfig> {
   public isValidWeight(weight: O1UInt64) {
     return weight.greaterThanOrEqual(MAX_WEIGHT.div(50)).and(weight.lessThan(MAX_WEIGHT));
   }
+
+  /**
+   * return true if now is in interval <pool.start, pool.end>
+   */
+  public isPoolRunning(poolData: PoolLBP) {
+    const now = this.network.block.height;
+    return poolData.start.lessThanOrEqual(now).and(poolData.end.greaterThanOrEqual(now));
+  }
+
   /**
    * Creates an LBP pool if one doesnt exist yet, and if the creator has
    * sufficient balance to do so.
@@ -168,6 +178,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
     );
 
     let assets = new AssetPair({ tokenAId, tokenBId });
+    // store pool informations and fee collector pair
     const poolLBP = new PoolLBP({ owner: creator, start, end, assets, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget });
     this.pools.set(poolKey, poolLBP);
     this.feeCollectorWithAsset.set(feeCollectorAssetKey, Bool(true));
@@ -271,6 +282,12 @@ export class LBP extends RuntimeModule<LBPConfig> {
       const tokenPair = TokenPair.from(tokenIn, tokenOut);
       const poolKey = PoolKey.fromTokenPair(tokenPair);
       const poolExists = this.poolExists(poolKey);
+
+      const poolFromStorage = this.pools.get(initialPoolKey);
+      const poolData = new PoolLBP(poolFromStorage.value);
+      const poolRunning = this.isPoolRunning(poolData);
+
+      assert(poolRunning, errors.SaleIsNotRunning());
 
       const calculatedAmountOut = this.calculateTokenOutAmount(
         tokenIn,
