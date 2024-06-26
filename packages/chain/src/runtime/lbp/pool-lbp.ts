@@ -1,5 +1,5 @@
-import { Balance, TokenId } from "@proto-kit/library";
-import { Provable, PublicKey, Struct, UInt64 } from "o1js";
+import { Balance, TokenId, UInt64 } from "@proto-kit/library";
+import { Provable, PublicKey, Struct } from "o1js";
 
 /**
  * Standard fee amount for a LBP pool
@@ -8,10 +8,6 @@ export class FeeLBP extends Struct({
   fee0: UInt64,
   fee1: UInt64
 }) {
-}
-
-export class WeightCurveType extends UInt64 {
-  static linear = UInt64.from(1);
 }
 
 export class AssetPair extends Struct({
@@ -36,8 +32,6 @@ export class PoolLBP extends Struct({
   initialWeight: UInt64,
   /// final weights of the asset_a where the minimum value is 0 (equivalent to 0% weight), and the maximum value is 100_000_000 (equivalent to 100% weight)
   finalWeight: UInt64,
-  /// weight curve
-  weightCurve: WeightCurveType,
   /// standard fee amount
   fee: FeeLBP,
   /// person that receives the fee

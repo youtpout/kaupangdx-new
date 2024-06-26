@@ -6,16 +6,17 @@ import {
 } from "@proto-kit/module";
 import { StateMap, assert } from "@proto-kit/protocol";
 import { PoolKey } from "./pool-key";
-import { Provable, PublicKey, Struct, UInt64 as O1UInt64, Bool } from "o1js";
+import { Provable, PublicKey, Struct, UInt64 as O1UInt64, Bool, Field } from "o1js";
 import { inject } from "tsyringe";
 import { Balance, TokenId, UInt64 } from "@proto-kit/library";
 import { TokenPair } from "./token-pair";
 import { LPTokenId } from "./lp-token-id";
 import { MAX_TOKEN_ID, TokenRegistry } from "../token-registry";
 import { Balances } from "../balances";
-import { AssetPair, FeeLBP, PoolLBP, WeightCurveType } from "./pool-lbp";
+import { AssetPair, FeeLBP, PoolLBP } from "./pool-lbp";
 import { FeeCollectorAssetKey } from "./fee-collector-asset-key";
 import { FeeCollectorAsset } from "./fee-collector-asset";
+import { start } from "repl";
 
 
 
@@ -34,7 +35,8 @@ export const errors = {
   MaxSaleDurationExceeded: () => `Duration of the LBP sale should not exceed 2 weeks`,
   InvalidWeight: () => `Invalid weight`,
   FeeAmountInvalid: () => `Invalid fee amount`,
-  SaleIsNotRunning: () => `Sale is not running`
+  SaleIsNotRunning: () => `Sale is not running`,
+  ZeroDuration: () => `Sale didn't start`
 };
 
 // we need a placeholder pool value until protokit supports value-less dictonaries or state arrays
@@ -42,9 +44,9 @@ export const placeholderPoolValue = Bool(true);
 
 export const MAX_PATH_LENGTH = 3;
 /// Max weight corresponds to 100%
-export const MAX_WEIGHT: O1UInt64 = O1UInt64.from(100_000_000);
+export const MAX_WEIGHT: UInt64 = UInt64.from(100_000_000);
 /// Max sale duration is 14 days
-export const MAX_SALE_DURATION: O1UInt64 = O1UInt64.from(60 * 60 * 24 * 14);
+export const MAX_SALE_DURATION: UInt64 = UInt64.from(60 * 60 * 24 * 14);
 
 export class TokenIdPath extends Struct({
   path: Provable.Array(TokenId, MAX_PATH_LENGTH),
@@ -91,7 +93,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
    * Zero weight at the beginning or at the end of a sale may cause a problem in the price calculation
    * Minimum allowed weight is 2%. The exponentiation used in the math can overflow when the ration between the weights is higher than 98/2.
    */
-  public isValidWeight(weight: O1UInt64) {
+  public isValidWeight(weight: UInt64) {
     return weight.greaterThanOrEqual(MAX_WEIGHT.div(50)).and(weight.lessThan(MAX_WEIGHT));
   }
 
@@ -99,7 +101,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
    * return true if now is in interval <pool.start, pool.end>
    */
   public isPoolRunning(poolData: PoolLBP) {
-    const now = this.network.block.height;
+    const now = UInt64.from(this.network.block.height);
     return poolData.start.lessThanOrEqual(now).and(poolData.end.greaterThanOrEqual(now));
   }
 
@@ -119,14 +121,13 @@ export class LBP extends RuntimeModule<LBPConfig> {
     tokenBId: TokenId,
     tokenAAmount: Balance,
     tokenBAmount: Balance,
-    start: O1UInt64,
-    end: O1UInt64,
-    initialWeight: O1UInt64,
-    finalWeight: O1UInt64,
-    weightCurve: WeightCurveType,
+    start: UInt64,
+    end: UInt64,
+    initialWeight: UInt64,
+    finalWeight: UInt64,
     fee: FeeLBP,
     feeCollector: PublicKey,
-    repayTarget: O1UInt64
+    repayTarget: UInt64
   ) {
     const tokenPair = TokenPair.from(tokenAId, tokenBId);
     const poolKey = PoolKey.fromTokenPair(tokenPair);
@@ -135,13 +136,13 @@ export class LBP extends RuntimeModule<LBPConfig> {
     const areTokensDistinct = tokenAId.equals(tokenBId).not();
     const poolDoesNotExist = this.poolExists(poolKey).not();
     const feeCollectorAssetDoesNotExist = this.feeCollectorWithAssetExists(feeCollectorAssetKey).not();
-    const now = this.network.block.height;
+    const now = UInt64.from(this.network.block.height);
     const nowLessThanStart = now.lessThan(start);
     const startLessThanEnd = start.lessThan(end);
     const max2Weeks = end.sub(start).lessThanOrEqual(MAX_SALE_DURATION);
     const validInitialWeight = this.isValidWeight(initialWeight);
     const validFinalWeight = this.isValidWeight(finalWeight);
-    const validFeeAmount = fee.fee1.greaterThan(O1UInt64.zero);
+    const validFeeAmount = fee.fee1.greaterThan(UInt64.zero);
 
     // TODO: add check for minimal liquidity in pools
     assert(areTokensDistinct, errors.tokensNotDistinct());
@@ -179,7 +180,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
     let assets = new AssetPair({ tokenAId, tokenBId });
     // store pool informations and fee collector pair
-    const poolLBP = new PoolLBP({ owner: creator, start, end, assets, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget });
+    const poolLBP = new PoolLBP({ owner: creator, start, end, assets, initialWeight, finalWeight, fee, feeCollector, repayTarget });
     this.pools.set(poolKey, poolLBP);
     this.feeCollectorWithAsset.set(feeCollectorAssetKey, Bool(true));
   }
@@ -188,11 +189,18 @@ export class LBP extends RuntimeModule<LBPConfig> {
   public calculateTokenOutAmountFromReserves(
     reserveIn: Balance,
     reserveOut: Balance,
-    amountIn: Balance
+    amountIn: Balance,
+    weightIn: UInt64,
+    weightOut: UInt64,
+    start: UInt64,
+    end: UInt64
   ) {
     const numerator = amountIn.mul(reserveOut);
     const denominator = reserveIn.add(amountIn);
 
+    const now = UInt64.from(this.network.block.height);
+
+    const linearWeight = this.calculateLinearWeight(start, end, weightIn, weightOut, now);
     // TODO: extract to safemath
     const adjustedDenominator = Balance.from(
       Provable.if(denominator.equals(0), Balance, Balance.from(1), denominator)
@@ -201,13 +209,42 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
     assert(denominator.equals(adjustedDenominator), "denominator is zero");
 
-    return numerator.div(adjustedDenominator);
+    const amountOut = numerator.div(adjustedDenominator);
+
+    const weightOutRatio = MAX_WEIGHT.sub(linearWeight);
+    // simple implementation of the lbp pool as no power can be used, we multiply the amount out by the weight ratio
+    const lbpPrice = amountOut.mul(linearWeight).div(weightOutRatio);
+    return lbpPrice;
+  }
+
+  /**
+   * Calculating weight at any given block in an interval using linear interpolation.
+   * @param startX beginning of an interval
+   * @param endX end of an interval
+   * @param startY initial weight
+   * @param endY final weight
+   * @param at block timestamp at which to calculate the weight
+   */
+  public calculateLinearWeight(startX: UInt64, endX: UInt64, startY: UInt64, endY: UInt64, at: UInt64) {
+    // todo check overflow
+    const d1 = endX.sub(at);
+    const d2 = at.sub(startX);
+    const dx = endX.sub(startX);
+
+    assert(dx.greaterThan(UInt64.zero), errors.ZeroDuration())
+
+    const leftPart = startY.mul(d1);
+    const rightPart = endY.mul(d2);
+    const result = (leftPart.add(rightPart)).div(dx);
+
+    return result;
   }
 
   public calculateTokenOutAmount(
     tokenIn: TokenId,
     tokenOut: TokenId,
-    amountIn: Balance
+    amountIn: Balance,
+    poolData: PoolLBP
   ) {
     const tokenPair = TokenPair.from(tokenIn, tokenOut);
     const pool = PoolKey.fromTokenPair(tokenPair);
@@ -215,10 +252,18 @@ export class LBP extends RuntimeModule<LBPConfig> {
     const reserveIn = this.balances.getBalance(tokenIn, pool);
     const reserveOut = this.balances.getBalance(tokenOut, pool);
 
+    const weightIn = UInt64.from(Provable.if(tokenIn.equals(poolData.assets.tokenAId), UInt64, poolData.initialWeight, poolData.finalWeight).value);
+    const weightOut = UInt64.from(Provable.if(tokenIn.equals(poolData.assets.tokenAId), UInt64, poolData.finalWeight, poolData.initialWeight).value);
+
+
     return this.calculateTokenOutAmountFromReserves(
       reserveIn,
       reserveOut,
-      amountIn
+      amountIn,
+      weightIn,
+      weightOut,
+      poolData.start,
+      poolData.end
     );
   }
 
@@ -292,7 +337,8 @@ export class LBP extends RuntimeModule<LBPConfig> {
       const calculatedAmountOut = this.calculateTokenOutAmount(
         tokenIn,
         tokenOut,
-        Balance.from(amountIn)
+        Balance.from(amountIn),
+        poolData
       );
 
       const amoutOutWithoutFee = calculatedAmountOut.sub(
@@ -331,17 +377,16 @@ export class LBP extends RuntimeModule<LBPConfig> {
     tokenBId: TokenId,
     tokenAAmount: Balance,
     tokenBAmount: Balance,
-    start: O1UInt64,
-    end: O1UInt64,
-    initialWeight: O1UInt64,
-    finalWeight: O1UInt64,
-    weightCurve: WeightCurveType,
+    start: UInt64,
+    end: UInt64,
+    initialWeight: UInt64,
+    finalWeight: UInt64,
     fee: FeeLBP,
     feeCollector: PublicKey,
-    repayTarget: O1UInt64
+    repayTarget: UInt64
   ) {
     const creator = this.transaction.sender.value;
-    this.createPool(creator, tokenAId, tokenBId, tokenAAmount, tokenBAmount, start, end, initialWeight, finalWeight, weightCurve, fee, feeCollector, repayTarget);
+    this.createPool(creator, tokenAId, tokenBId, tokenAAmount, tokenBAmount, start, end, initialWeight, finalWeight, fee, feeCollector, repayTarget);
   }
 
 
