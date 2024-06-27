@@ -9,7 +9,7 @@ import { PoolKey } from "../../../src/runtime/lbp/pool-key";
 import { TokenPair } from "../../../src/runtime/lbp/token-pair";
 import { LPTokenId } from "../../../src/runtime/lbp/lp-token-id";
 import { MAX_TOKEN_ID } from "../../../src/runtime/token-registry";
-import { FeeLBP } from "../../../src/runtime/lbp/pool-lbp";
+import { AssetPair, FeeLBP } from "../../../src/runtime/lbp/pool-lbp";
 
 describe("lbp", () => {
   const alicePrivateKey = PrivateKey.random();
@@ -173,6 +173,8 @@ describe("lbp", () => {
 
       await appChain.produceBlock();
 
+      console.log("pool created");
+
       const { pool, liquidity } = await queryPool(appChain, tokenAId, tokenBId);
       const { balance: aliceLpBalance } = await queryBalance(
         appChain,
@@ -181,6 +183,9 @@ describe("lbp", () => {
       );
 
       expect(pool).toBeDefined();
+      expect(pool?.assets).toEqual(new AssetPair({ tokenAId, tokenBId }));
+      console.log("pool assets", pool?.assets.tokenAId.toString());
+      console.log("pool assets", pool?.assets.tokenBId.toString());
       expect(liquidity.tokenA?.toString()).toEqual(
         tokenAInitialLiquidity.toString()
       );

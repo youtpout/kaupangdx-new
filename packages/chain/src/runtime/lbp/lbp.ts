@@ -43,7 +43,7 @@ export const placeholderPoolValue = Bool(true);
 export const MAX_PATH_LENGTH = 3;
 /// Max weight corresponds to 100%
 export const MAX_WEIGHT: UInt64 = UInt64.from(100_000_000);
-/// Max sale duration is 14 days
+/// Max sale duration is 14 days (not really 2 weeks due to time between blocks)
 export const MAX_SALE_DURATION: UInt64 = UInt64.from(60 * 60 * 24 * 14);
 
 export class TokenIdPath extends Struct({
@@ -137,9 +137,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
     const now = UInt64.from(this.network.block.height);
     const nowLessThanStart = now.lessThan(start);
     const startLessThanEnd = start.lessThan(end);
-    Provable.log("end log", end);
-    Provable.log("start log", start);
-    const max2Weeks = end.sub(start).lessThanOrEqual(MAX_SALE_DURATION);
+    const max2Weeks = UInt64.from(end).sub(UInt64.from(start)).lessThanOrEqual(MAX_SALE_DURATION);
     const validInitialWeight = this.isValidWeight(initialWeight);
     const validFinalWeight = this.isValidWeight(finalWeight);
     const validFeeAmount = fee.fee1.greaterThan(UInt64.zero);
@@ -200,7 +198,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
     const now = UInt64.from(this.network.block.height);
 
-    const linearWeight = this.calculateLinearWeight(start, end, weightIn, weightOut, now);
+    const linearWeight = this.calculateLinearWeight(UInt64.from(start), UInt64.from(end), weightIn, weightOut, now);
     // TODO: extract to safemath
     const adjustedDenominator = Balance.from(
       Provable.if(denominator.equals(0), Balance, Balance.from(1), denominator)
