@@ -246,6 +246,71 @@ describe("lbp", () => {
     });
   });
 
+  describe("calculate linear weight", () => {
+    beforeAll(async () => {
+      appChain = fromRuntime(modules);
+
+      appChain.configurePartial({
+        Runtime: config,
+      });
+
+      await appChain.start();
+      appChain.setSigner(alicePrivateKey);
+
+      lbp = appChain.runtime.resolve("LBP");
+    });
+
+    it("should calculate linear weight", async () => {
+
+      const startX = UInt64.from(1000);
+      const endX = UInt64.from(2000);
+      const startY = UInt64.from(80_000);
+      const endY = UInt64.from(20_000);
+      const at = UInt64.from(1500);
+
+      const result = lbp.getLinearWeight(startX, endX, startY, endY, at);
+      // 50% expected at mid-course
+      expect(result?.toString()).toEqual("50000");
+
+      const resultStart = lbp.getLinearWeight(startX, endX, startY, endY, startX);
+      // 80% expected at start
+      expect(resultStart?.toString()).toEqual("80000");
+
+      const resultEnd = lbp.getLinearWeight(startX, endX, startY, endY, endX);
+      // 20% expected at end
+      expect(resultEnd?.toString()).toEqual("20000");
+    });
+
+    // it("should calculate amount out", async () => {
+    //   await drip(appChain, alicePrivateKey, tokenAId, tokenAInitialLiquidity, {
+    //     nonce: nonce++,
+    //   });
+    //   await drip(appChain, alicePrivateKey, tokenBId, tokenBInitialLiquidity, {
+    //     nonce: nonce++,
+    //   });
+
+    //   await createPoolSigned(
+    //     appChain,
+    //     alicePrivateKey,
+    //     tokenAId,
+    //     tokenBId,
+    //     tokenAInitialLiquidity,
+    //     tokenBInitialLiquidity,
+    //     start,
+    //     end,
+    //     initialWeight,
+    //     finalWeight,
+    //     feeLBP,
+    //     bob,
+    //     repayTarget,
+    //     { nonce: nonce++ }
+    //   );
+
+    //   await appChain.produceBlock();
+    // });
+
+  });
+
   // describe("sell", () => {
   //   beforeAll(async () => {
   //     nonce = 0;

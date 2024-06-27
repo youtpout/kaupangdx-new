@@ -402,4 +402,9 @@ export class LBP extends RuntimeModule<LBPConfig> {
       amountOutMinLimit
     );
   }
+
+  @runtimeMethod()
+  public getLinearWeight(startX: UInt64, endX: UInt64, startY: UInt64, endY: UInt64, at: UInt64) {
+    return this.calculateLinearWeight(UInt64.from(startX), UInt64.from(endX), UInt64.from(startY), UInt64.from(endY), UInt64.from(at));
+  }
 }
