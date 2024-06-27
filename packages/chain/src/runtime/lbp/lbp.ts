@@ -16,8 +16,6 @@ import { Balances } from "../balances";
 import { AssetPair, FeeLBP, PoolLBP } from "./pool-lbp";
 import { FeeCollectorAssetKey } from "./fee-collector-asset-key";
 import { FeeCollectorAsset } from "./fee-collector-asset";
-import { start } from "repl";
-
 
 
 export const errors = {
@@ -139,6 +137,8 @@ export class LBP extends RuntimeModule<LBPConfig> {
     const now = UInt64.from(this.network.block.height);
     const nowLessThanStart = now.lessThan(start);
     const startLessThanEnd = start.lessThan(end);
+    Provable.log("end log", end);
+    Provable.log("start log", start);
     const max2Weeks = end.sub(start).lessThanOrEqual(MAX_SALE_DURATION);
     const validInitialWeight = this.isValidWeight(initialWeight);
     const validFinalWeight = this.isValidWeight(finalWeight);
