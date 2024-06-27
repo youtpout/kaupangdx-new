@@ -1,13 +1,15 @@
 import "reflect-metadata";
 import { Balance, TokenId, UInt64 } from "@proto-kit/library";
-import { PrivateKey, Provable, PublicKey, UInt64 as O1UInt64 } from "o1js";
+import { PrivateKey, Provable, PublicKey, UInt64 as O1UInt64, Field, Poseidon } from "o1js";
 import { fromRuntime } from "../../testing-appchain";
 import { config, modules } from "../../../src/runtime";
 import { TokenIdPath, LBP, errors } from "../../../src/runtime/lbp/lbp";
 import { KaupangTestingAppChain, drip } from "../../helpers";
 import { PoolKey } from "../../../src/runtime/lbp/pool-key";
 import { TokenPair } from "../../../src/runtime/lbp/token-pair";
+import { TokenPair as TokenPairXYK } from "../../../src/runtime/xyk/token-pair";
 import { LPTokenId } from "../../../src/runtime/lbp/lp-token-id";
+import { LPTokenId as LPTokenIdXYK } from "../../../src/runtime/xyk/lp-token-id";
 import { MAX_TOKEN_ID } from "../../../src/runtime/token-registry";
 import { AssetPair, FeeLBP } from "../../../src/runtime/lbp/pool-lbp";
 
@@ -60,8 +62,6 @@ describe("lbp", () => {
     const tx = await appChain.transaction(
       senderPrivateKey.toPublicKey(),
       () => {
-        console.log("start", start.toString());
-        console.log("end", end.toString());
         lbp.createPoolSigned(tokenAId, tokenBId, tokenAAmount, tokenBAmount, start, end, initialWeight, finalWeight, fee, feeCollector, repayTarget);
       },
       options
@@ -146,6 +146,21 @@ describe("lbp", () => {
       lbp = appChain.runtime.resolve("LBP");
     });
 
+    it("should generate tokenId", async () => {
+      const tokenPair = Provable.if(
+        tokenAId.greaterThan(tokenBId),
+        TokenPair,
+        new TokenPair({ tokenAId: tokenAId, tokenBId: tokenBId }),
+        new TokenPair({ tokenAId: tokenBId, tokenBId: tokenAId })
+      );
+      // check tokenId is correctly generated and different from xyk
+      const toFields = tokenPair.tokenAId.toFields().concat(tokenPair.tokenBId.toFields()).concat(Field(1));
+      const toTokenId = TokenId.from(Poseidon.hash(toFields));
+      const lpTokenIdXYK = LPTokenIdXYK.fromTokenPair(TokenPairXYK.from(tokenAId, tokenBId));
+      expect(toTokenId).toEqual(lpTokenId);
+      expect(lpTokenIdXYK).not.toEqual(lpTokenId);
+    });
+
     it("should create a pool", async () => {
       await drip(appChain, alicePrivateKey, tokenAId, tokenAInitialLiquidity, {
         nonce: nonce++,
@@ -173,8 +188,6 @@ describe("lbp", () => {
 
       await appChain.produceBlock();
 
-      console.log("pool created");
-
       const { pool, liquidity } = await queryPool(appChain, tokenAId, tokenBId);
       const { balance: aliceLpBalance } = await queryBalance(
         appChain,
@@ -182,10 +195,20 @@ describe("lbp", () => {
         alice
       );
 
+      // check pool value match
       expect(pool).toBeDefined();
       expect(pool?.assets).toEqual(new AssetPair({ tokenAId, tokenBId }));
-      console.log("pool assets", pool?.assets.tokenAId.toString());
-      console.log("pool assets", pool?.assets.tokenBId.toString());
+      expect(pool?.end.toBigInt()).toEqual(end.toBigInt());
+      expect(pool?.start.toBigInt()).toEqual(start.toBigInt());
+      expect(pool?.owner).toEqual(alice);
+      expect(pool?.initialWeight.toBigInt()).toEqual(initialWeight.toBigInt());
+      expect(pool?.finalWeight.toBigInt()).toEqual(finalWeight.toBigInt());
+      expect(pool?.fee.fee0.toBigInt()).toEqual(feeLBP.fee0.toBigInt());
+      expect(pool?.fee.fee1.toBigInt()).toEqual(feeLBP.fee1.toBigInt());
+      expect(pool?.feeCollector).toEqual(bob);
+      expect(pool?.repayTarget.toBigInt()).toEqual(repayTarget.toBigInt());
+      expect(pool?.feeCollector).not.toEqual(alice);
+
       expect(liquidity.tokenA?.toString()).toEqual(
         tokenAInitialLiquidity.toString()
       );
