@@ -56,7 +56,6 @@ describe("lbp", () => {
     repayTarget: UInt64,
     options?: { nonce: number }
   ) {
-    const lbp = appChain.runtime.resolve("LBP");
     appChain.setSigner(senderPrivateKey);
 
     const tx = await appChain.transaction(
@@ -81,7 +80,6 @@ describe("lbp", () => {
     amountOutMinLimit: Balance,
     options?: { nonce: number }
   ) {
-    const lbp = appChain.runtime.resolve("LBP");
     appChain.setSigner(senderPrivateKey);
 
     const pooldata = await appChain.query.runtime.LBP.pools.get(PublicKey.fromBase58("B62qnpJVLfHJrSHcW7A1osf6EZd7VK8BYaMq3Y7K1YJK1CiKZ2tH7tV"));
