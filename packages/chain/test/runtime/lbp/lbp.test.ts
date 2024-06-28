@@ -73,30 +73,30 @@ describe("lbp", () => {
     return tx;
   }
 
-  // async function sellPathSigned(
-  //   appChain: KaupangTestingAppChain,
-  //   senderPrivateKey: PrivateKey,
-  //   path: TokenIdPath,
-  //   amountIn: Balance,
-  //   amountOutMinLimit: Balance,
-  //   options?: { nonce: number }
-  // ) {
-  //   const xyk = appChain.runtime.resolve("XYK");
-  //   appChain.setSigner(senderPrivateKey);
+  async function sellPathSigned(
+    appChain: KaupangTestingAppChain,
+    senderPrivateKey: PrivateKey,
+    path: TokenIdPath,
+    amountIn: Balance,
+    amountOutMinLimit: Balance,
+    options?: { nonce: number }
+  ) {
+    const lbp = appChain.runtime.resolve("LBP");
+    appChain.setSigner(senderPrivateKey);
 
-  //   const tx = await appChain.transaction(
-  //     senderPrivateKey.toPublicKey(),
-  //     () => {
-  //       xyk.sellPathSigned(path, amountIn, amountOutMinLimit);
-  //     },
-  //     options
-  //   );
+    const tx = await appChain.transaction(
+      senderPrivateKey.toPublicKey(),
+      () => {
+        lbp.sellPathSigned(path, amountIn, amountOutMinLimit);
+      },
+      options
+    );
 
-  //   await tx.sign();
-  //   await tx.send();
+    await tx.sign();
+    await tx.send();
 
-  //   return tx;
-  // }
+    return tx;
+  }
 
   async function queryPool(
     appChain: KaupangTestingAppChain,
@@ -104,6 +104,7 @@ describe("lbp", () => {
     tokenBId: TokenId
   ) {
     const address = PoolKey.fromTokenPair(TokenPair.from(tokenAId, tokenBId));
+    console.log("poolkey querypool", address.toBase58());
     return {
       pool: await appChain.query.runtime.LBP.pools.get(address),
       liquidity: {
@@ -327,86 +328,100 @@ describe("lbp", () => {
 
   });
 
-  // describe("sell", () => {
-  //   beforeAll(async () => {
-  //     nonce = 0;
-  //     appChain = fromRuntime(modules);
+  describe("sell", () => {
+    beforeAll(async () => {
+      nonce = 0;
+      appChain = fromRuntime(modules);
 
-  //     appChain.configurePartial({
-  //       Runtime: config,
-  //     });
+      appChain.configurePartial({
+        Runtime: config,
+      });
 
-  //     await appChain.start();
-  //     appChain.setSigner(alicePrivateKey);
+      await appChain.start();
+      appChain.setSigner(alicePrivateKey);
 
-  //     xyk = appChain.runtime.resolve("XYK");
+      lbp = appChain.runtime.resolve("LBP");
 
-  //     await drip(
-  //       appChain,
-  //       alicePrivateKey,
-  //       tokenAId,
-  //       Balance.from(tokenAInitialLiquidity.toBigInt() * 2n),
-  //       {
-  //         nonce: nonce++,
-  //       }
-  //     );
-  //     await drip(
-  //       appChain,
-  //       alicePrivateKey,
-  //       tokenBId,
-  //       Balance.from(tokenBInitialLiquidity.toBigInt() * 2n),
-  //       {
-  //         nonce: nonce++,
-  //       }
-  //     );
+      await drip(
+        appChain,
+        alicePrivateKey,
+        tokenAId,
+        Balance.from(tokenAInitialLiquidity.toBigInt() * 2n),
+        {
+          nonce: nonce++,
+        }
+      );
+      await drip(
+        appChain,
+        alicePrivateKey,
+        tokenBId,
+        Balance.from(tokenBInitialLiquidity.toBigInt() * 2n),
+        {
+          nonce: nonce++,
+        }
+      );
 
-  //     await createPoolSigned(
-  //       appChain,
-  //       alicePrivateKey,
-  //       tokenAId,
-  //       tokenBId,
-  //       tokenAInitialLiquidity,
-  //       tokenBInitialLiquidity,
-  //       { nonce: nonce++ }
-  //     );
-  //   });
+      await createPoolSigned(
+        appChain,
+        alicePrivateKey,
+        tokenAId,
+        tokenBId,
+        tokenAInitialLiquidity,
+        tokenBInitialLiquidity,
+        start,
+        end,
+        initialWeight,
+        finalWeight,
+        feeLBP,
+        bob,
+        repayTarget,
+        { nonce: nonce++ }
+      );
 
-  //   it("should sell tokens for tokens out", async () => {
-  //     const path = new TokenIdPath({
-  //       path: [tokenAId, tokenBId, TokenId.from(MAX_TOKEN_ID)],
-  //     });
+      const block = await appChain.produceBlock();
+    });
 
-  //     await sellPathSigned(
-  //       appChain,
-  //       alicePrivateKey,
-  //       path,
-  //       Balance.from(100),
-  //       Balance.from(1),
-  //       { nonce: nonce++ }
-  //     );
+    it("should sell tokens for tokens out", async () => {
+      const path = new TokenIdPath({
+        path: [tokenAId, tokenBId, TokenId.from(MAX_TOKEN_ID)],
+      });
 
-  //     const block = await appChain.produceBlock();
-  //     Provable.log("block", block);
+      const { pool, liquidity } = await queryPool(appChain, tokenAId, tokenBId);
+      console.log("pool end test", pool?.end.toString());
 
-  //     const { balance: balanceA } = await queryBalance(
-  //       appChain,
-  //       tokenAId,
-  //       alice
-  //     );
+      console.log("pooldata from test", pool);
 
-  //     const { balance: balanceB } = await queryBalance(
-  //       appChain,
-  //       tokenBId,
-  //       alice
-  //     );
+      await sellPathSigned(
+        appChain,
+        alicePrivateKey,
+        path,
+        Balance.from(100),
+        Balance.from(1),
+        { nonce: nonce++ }
+      );
 
-  //     expect(balanceA?.toString()).toEqual("999900");
-  //     expect(balanceB?.toString()).toEqual("1000099");
+      const block = await appChain.produceBlock();
+      Provable.log("block", block);
 
-  //     Provable.log("balances", {
-  //       balanceA,
-  //       balanceB,
-  //     });
-  //   });
-  // });
+      const { balance: balanceA } = await queryBalance(
+        appChain,
+        tokenAId,
+        alice
+      );
+
+      const { balance: balanceB } = await queryBalance(
+        appChain,
+        tokenBId,
+        alice
+      );
+
+      expect(balanceA?.toString()).toEqual("999900");
+      expect(balanceB?.toString()).toEqual("1000099");
+
+      Provable.log("balances", {
+        balanceA,
+        balanceB,
+      });
+    });
+  });
 });

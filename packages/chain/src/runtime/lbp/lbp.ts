@@ -180,6 +180,8 @@ export class LBP extends RuntimeModule<LBPConfig> {
     // store pool informations and fee collector pair
     const poolLBP = new PoolLBP({ owner: creator, start, end, assets, initialWeight, finalWeight, fee, feeCollector, repayTarget });
     this.pools.set(poolKey, poolLBP);
+
+    Provable.log("create pool", poolLBP);
     this.feeCollectorWithAsset.set(feeCollectorAssetKey, Bool(true));
   }
 
@@ -198,7 +200,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
     const now = UInt64.from(this.network.block.height);
 
-    const linearWeight = this.calculateLinearWeight(UInt64.from(start), UInt64.from(end), weightIn, weightOut, now);
+    const linearWeight = this.calculateLinearWeight(start, end, weightIn, weightOut, now);
     // TODO: extract to safemath
     const adjustedDenominator = Balance.from(
       Provable.if(denominator.equals(0), Balance, Balance.from(1), denominator)
@@ -228,8 +230,11 @@ export class LBP extends RuntimeModule<LBPConfig> {
     const d1 = endX.sub(at);
     const d2 = at.sub(startX);
     const dx = endX.sub(startX);
+    const dxGreaterThanZero = dx.greaterThan(UInt64.zero);
 
-    assert(dx.greaterThan(UInt64.zero), errors.ZeroDuration())
+    Provable.log("dx value", dx);
+
+    assert(dxGreaterThanZero, errors.ZeroDuration())
 
     const leftPart = startY.mul(d1);
     const rightPart = endY.mul(d2);
@@ -253,6 +258,8 @@ export class LBP extends RuntimeModule<LBPConfig> {
     const weightIn = UInt64.from(Provable.if(tokenIn.equals(poolData.assets.tokenAId), UInt64, poolData.initialWeight, poolData.finalWeight).value);
     const weightOut = UInt64.from(Provable.if(tokenIn.equals(poolData.assets.tokenAId), UInt64, poolData.finalWeight, poolData.initialWeight).value);
 
+    const start = UInt64.from(poolData.start);
+    const end = UInt64.from(poolData.end);
 
     return this.calculateTokenOutAmountFromReserves(
       reserveIn,
@@ -260,8 +267,8 @@ export class LBP extends RuntimeModule<LBPConfig> {
       amountIn,
       weightIn,
       weightOut,
-      poolData.start,
-      poolData.end
+      start,
+      end
     );
   }
 
@@ -326,11 +333,16 @@ export class LBP extends RuntimeModule<LBPConfig> {
       const poolKey = PoolKey.fromTokenPair(tokenPair);
       const poolExists = this.poolExists(poolKey);
 
-      const poolFromStorage = this.pools.get(initialPoolKey);
+      const poolFromStorage = this.pools.get(poolKey);
       const poolData = new PoolLBP(poolFromStorage.value);
       const poolRunning = this.isPoolRunning(poolData);
 
       assert(poolRunning, errors.SaleIsNotRunning());
+
+      Provable.log("poolKey", poolKey);
+      Provable.log("pooldata", poolData)
+      Provable.log("pooldata end", poolData.end);
+      Provable.log("pooldata end", poolFromStorage.value.end);
 
       const calculatedAmountOut = this.calculateTokenOutAmount(
         tokenIn,
