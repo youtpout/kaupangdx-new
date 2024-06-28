@@ -279,6 +279,22 @@ describe("lbp", () => {
       const resultEnd = lbp.getLinearWeight(startX, endX, startY, endY, endX);
       // 20% expected at end
       expect(resultEnd?.toString()).toEqual("20000");
+
+      const resultDecreased = lbp.getLinearWeight(startX, endX, endY, startY, at);
+      // 50% expected at mid-course
+      expect(resultDecreased?.toString()).toEqual("50000");
+
+      const resultDecreasedStart = lbp.getLinearWeight(startX, endX, endY, startY, startX);
+      // 20% expected at start
+      expect(resultDecreasedStart?.toString()).toEqual("20000");
+
+      const resultDecreasedEnd = lbp.getLinearWeight(startX, endX, endY, startY, endX);
+      // 80% expected at end
+      expect(resultDecreasedEnd?.toString()).toEqual("80000");
+
+      const resultDecreasedNearEnd = lbp.getLinearWeight(startX, endX, endY, startY, UInt64.from(1800));
+      // 68% expected 
+      expect(resultDecreasedNearEnd?.toString()).toEqual("68000");
     });
 
     // it("should calculate amount out", async () => {
