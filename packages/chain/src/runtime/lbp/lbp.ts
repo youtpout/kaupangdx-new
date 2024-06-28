@@ -179,6 +179,7 @@ export class LBP extends RuntimeModule<LBPConfig> {
     let assets = new AssetPair({ tokenAId, tokenBId });
     // store pool informations and fee collector pair
     const poolLBP = new PoolLBP({ owner: creator, start, end, assets, initialWeight, finalWeight, fee, feeCollector, repayTarget });
+    Provable.log("poolkey inserted", poolKey);
     this.pools.set(poolKey, poolLBP);
 
     Provable.log("create pool", poolLBP);

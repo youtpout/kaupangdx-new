@@ -84,6 +84,9 @@ describe("lbp", () => {
     const lbp = appChain.runtime.resolve("LBP");
     appChain.setSigner(senderPrivateKey);
 
+    const pooldata = await appChain.query.runtime.LBP.pools.get(PublicKey.fromBase58("B62qnpJVLfHJrSHcW7A1osf6EZd7VK8BYaMq3Y7K1YJK1CiKZ2tH7tV"));
+    console.log("pooldata end on sellpathsigned", pooldata?.end.toString());
+
     const tx = await appChain.transaction(
       senderPrivateKey.toPublicKey(),
       () => {
@@ -104,7 +107,6 @@ describe("lbp", () => {
     tokenBId: TokenId
   ) {
     const address = PoolKey.fromTokenPair(TokenPair.from(tokenAId, tokenBId));
-    console.log("poolkey querypool", address.toBase58());
     return {
       pool: await appChain.query.runtime.LBP.pools.get(address),
       liquidity: {
@@ -386,10 +388,6 @@ describe("lbp", () => {
         path: [tokenAId, tokenBId, TokenId.from(MAX_TOKEN_ID)],
       });
 
-      const { pool, liquidity } = await queryPool(appChain, tokenAId, tokenBId);
-      console.log("pool end test", pool?.end.toString());
-
-      console.log("pooldata from test", pool);
 
       await sellPathSigned(
         appChain,
