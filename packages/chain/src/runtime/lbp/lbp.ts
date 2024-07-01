@@ -33,8 +33,7 @@ export const errors = {
   MaxSaleDurationExceeded: () => `Duration of the LBP sale should not exceed 2 weeks`,
   InvalidWeight: () => `Invalid weight`,
   FeeAmountInvalid: () => `Invalid fee amount`,
-  SaleIsNotRunning: () => `Sale is not running`,
-  ZeroDuration: () => `Sale didn't start`
+  SaleIsNotRunning: () => `Sale is not running`
 };
 
 // we need a placeholder pool value until protokit supports value-less dictonaries or state arrays
@@ -227,19 +226,31 @@ export class LBP extends RuntimeModule<LBPConfig> {
    * @param at block timestamp at which to calculate the weight
    */
   public calculateLinearWeight(startX: UInt64, endX: UInt64, startY: UInt64, endY: UInt64, at: UInt64) {
+
+    const poolEnded = endX.lessThan(at);
+    const poolNotStarted = at.lessThan(startX);
+
+    assert(poolEnded.not(), errors.SaleIsNotRunning());
+    assert(poolNotStarted.not(), errors.SaleIsNotRunning())
+
+    const endGreater = UInt64.from(Provable.if(poolEnded, UInt64, UInt64.from(at), endX).value);
+    const atGreater = UInt64.from(Provable.if(poolNotStarted, UInt64, UInt64.from(startX), at).value);
+
     // todo check overflow
-    const d1 = endX.sub(at);
-    const d2 = at.sub(startX);
-    const dx = endX.sub(startX);
+    const d1 = endGreater.sub(at);
+    const d2 = atGreater.sub(startX);
+    const dx = endGreater.sub(startX);
     const dxGreaterThanZero = dx.greaterThan(UInt64.zero);
 
-    Provable.log("dx value", dx);
+    const paddedDivisor = Provable.if(dxGreaterThanZero.not(), UInt64, UInt64.from(1), dx).value;
 
-    assert(dxGreaterThanZero, errors.ZeroDuration())
+    assert(dxGreaterThanZero, errors.SaleIsNotRunning());
 
+    Provable.log("startY", startY);
+    Provable.log("d1", d1);
     const leftPart = startY.mul(d1);
     const rightPart = endY.mul(d2);
-    const result = (leftPart.add(rightPart)).div(dx);
+    const result = (leftPart.add(rightPart)).div(UInt64.from(paddedDivisor));
 
     return result;
   }
