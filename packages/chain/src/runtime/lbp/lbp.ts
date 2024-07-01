@@ -319,78 +319,59 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
   public sellPath(
     seller: PublicKey,
-    { path }: TokenIdPath,
+    tokenIn: TokenId,
+    tokenOut: TokenId,
     amountIn: Balance,
     amountOutMinLimit: Balance
   ) {
-    const initialTokenPair = TokenPair.from(path[0], path[1]);
+    const initialTokenPair = TokenPair.from(tokenIn, tokenOut);
     const initialPoolKey = PoolKey.fromTokenPair(initialTokenPair);
     const pathBeginswWithExistingPool = this.poolExists(initialPoolKey);
 
     assert(pathBeginswWithExistingPool, errors.poolDoesNotExist());
 
     let amountOut = Balance.zero;
-    let lastPoolKey = PoolKey.empty();
-    let sender = seller;
-    // TODO: better handling of dummy tokens
-    let lastTokenOut = TokenId.from(MAX_TOKEN_ID);
 
-    // TODO: figure out if there are path variation edge cases
-    // if yes, make the whole trade fail if the path is not valid
-    for (let i = 0; i < MAX_PATH_LENGTH - 1; i++) {
-      const tokenIn = path[i];
-      const tokenOut = path[i + 1];
+    const poolFromStorage = this.pools.get(initialPoolKey);
+    const poolData = new PoolLBP(poolFromStorage.value);
+    const poolRunning = this.isPoolRunning(poolData);
 
-      const tokenPair = TokenPair.from(tokenIn, tokenOut);
-      const poolKey = PoolKey.fromTokenPair(tokenPair);
-      const poolExists = this.poolExists(poolKey);
+    assert(poolRunning, errors.SaleIsNotRunning());
 
-      const poolFromStorage = this.pools.get(poolKey);
-      const poolData = new PoolLBP(poolFromStorage.value);
-      const poolRunning = this.isPoolRunning(poolData);
+    Provable.log("poolKey", initialPoolKey);
+    Provable.log("pooldata value sell", poolData)
+    Provable.log("pooldata end", poolData.end);
+    Provable.log("pooldata end", poolFromStorage.value.end);
 
-      assert(poolRunning, errors.SaleIsNotRunning());
+    const calculatedAmountOut = this.calculateTokenOutAmount(
+      tokenIn,
+      tokenOut,
+      Balance.from(amountIn),
+      poolData
+    );
 
-      Provable.log("poolKey", poolKey);
-      Provable.log("pooldata", poolData)
-      Provable.log("pooldata end", poolData.end);
-      Provable.log("pooldata end", poolFromStorage.value.end);
+    Provable.log("amount out", calculatedAmountOut);
 
-      const calculatedAmountOut = this.calculateTokenOutAmount(
-        tokenIn,
-        tokenOut,
-        Balance.from(amountIn),
-        poolData
-      );
+    const amoutOutWithoutFee = calculatedAmountOut.sub(
+      calculatedAmountOut.mul(3n).div(100000n)
+    );
 
-      const amoutOutWithoutFee = calculatedAmountOut.sub(
-        calculatedAmountOut.mul(3n).div(100000n)
-      );
+    amountOut = Balance.from(
+      Provable.if(pathBeginswWithExistingPool, Balance, amoutOutWithoutFee, amountOut).value
+    );
 
-      lastTokenOut = Provable.if(poolExists, TokenId, tokenOut, lastTokenOut);
+    amountIn = UInt64.from(
+      Provable.if(pathBeginswWithExistingPool, Balance, amountIn, Balance.zero).value
+    );
 
-      lastPoolKey = Provable.if(poolExists, PoolKey, poolKey, lastPoolKey);
-
-      amountOut = Balance.from(
-        Provable.if(poolExists, Balance, amoutOutWithoutFee, amountOut).value
-      );
-
-      amountIn = UInt64.from(
-        Provable.if(poolExists, Balance, amountIn, Balance.zero).value
-      );
-
-      this.balances.transfer(tokenIn, sender, lastPoolKey, amountIn);
-
-      sender = lastPoolKey;
-      amountIn = amountOut;
-    }
+    this.balances.transfer(tokenIn, seller, initialPoolKey, amountIn);
 
     const isAmountOutMinLimitSufficient =
       amountOut.greaterThanOrEqual(amountOutMinLimit);
 
     assert(isAmountOutMinLimitSufficient, errors.amountOutIsInsufficient());
 
-    this.balances.transfer(lastTokenOut, lastPoolKey, seller, amountOut);
+    this.balances.transfer(tokenOut, initialPoolKey, seller, amountOut);
   }
 
   @runtimeMethod()
@@ -415,13 +396,15 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
   @runtimeMethod()
   public sellPathSigned(
-    path: TokenIdPath,
+    tokenIn: TokenId,
+    tokenOut: TokenId,
     amountIn: Balance,
     amountOutMinLimit: Balance
   ) {
     this.sellPath(
       this.transaction.sender.value,
-      path,
+      tokenIn,
+      tokenOut,
       amountIn,
       amountOutMinLimit
     );

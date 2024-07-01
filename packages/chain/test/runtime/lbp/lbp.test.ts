@@ -40,6 +40,13 @@ describe("lbp", () => {
 
   let nonce = 0;
 
+  async function produceBlocks(nb: number) {
+    for (let index = 0; index < nb; index++) {
+      const element = nb;
+
+    }
+  }
+
   async function createPoolSigned(
     appChain: KaupangTestingAppChain,
     senderPrivateKey: PrivateKey,
@@ -75,7 +82,8 @@ describe("lbp", () => {
   async function sellPathSigned(
     appChain: KaupangTestingAppChain,
     senderPrivateKey: PrivateKey,
-    path: TokenIdPath,
+    tokenIn: TokenId,
+    tokenOut: TokenId,
     amountIn: Balance,
     amountOutMinLimit: Balance,
     options?: { nonce: number }
@@ -88,7 +96,7 @@ describe("lbp", () => {
     const tx = await appChain.transaction(
       senderPrivateKey.toPublicKey(),
       () => {
-        lbp.sellPathSigned(path, amountIn, amountOutMinLimit);
+        lbp.sellPathSigned(tokenIn, tokenOut, amountIn, amountOutMinLimit);
       },
       options
     );
@@ -378,26 +386,26 @@ describe("lbp", () => {
         { nonce: nonce++ }
       );
 
-      const block = await appChain.produceBlock();
+      for (let index = 0; index < 11; index++) {
+
+        const block = await appChain.produceBlock();
+
+      }
     });
 
     it("should sell tokens for tokens out", async () => {
-      const path = new TokenIdPath({
-        path: [tokenAId, tokenBId, TokenId.from(MAX_TOKEN_ID)],
-      });
-
 
       await sellPathSigned(
         appChain,
         alicePrivateKey,
-        path,
+        tokenAId,
+        tokenBId,
         Balance.from(100),
         Balance.from(1),
         { nonce: nonce++ }
       );
 
       const block = await appChain.produceBlock();
-      Provable.log("block", block);
 
       const { balance: balanceA } = await queryBalance(
         appChain,
@@ -411,13 +419,14 @@ describe("lbp", () => {
         alice
       );
 
-      expect(balanceA?.toString()).toEqual("999900");
-      expect(balanceB?.toString()).toEqual("1000099");
-
       Provable.log("balances", {
         balanceA,
         balanceB,
       });
+
+      expect(balanceA?.toString()).toEqual("999900");
+      expect(balanceB?.toString()).toEqual("1000099");
+
     });
   });
 });
