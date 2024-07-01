@@ -178,10 +178,8 @@ export class LBP extends RuntimeModule<LBPConfig> {
     let assets = new AssetPair({ tokenAId, tokenBId });
     // store pool informations and fee collector pair
     const poolLBP = new PoolLBP({ owner: creator, start, end, assets, initialWeight, finalWeight, fee, feeCollector, repayTarget });
-    Provable.log("poolkey inserted", poolKey);
     this.pools.set(poolKey, poolLBP);
 
-    Provable.log("create pool", poolLBP);
     this.feeCollectorWithAsset.set(feeCollectorAssetKey, Bool(true));
   }
 
@@ -246,8 +244,6 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
     assert(dxGreaterThanZero, errors.SaleIsNotRunning());
 
-    Provable.log("startY", startY);
-    Provable.log("d1", d1);
     const leftPart = startY.mul(d1);
     const rightPart = endY.mul(d2);
     const result = (leftPart.add(rightPart)).div(UInt64.from(paddedDivisor));
@@ -338,19 +334,12 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
     assert(poolRunning, errors.SaleIsNotRunning());
 
-    Provable.log("poolKey", initialPoolKey);
-    Provable.log("pooldata value sell", poolData)
-    Provable.log("pooldata end", poolData.end);
-    Provable.log("pooldata end", poolFromStorage.value.end);
-
     const calculatedAmountOut = this.calculateTokenOutAmount(
       tokenIn,
       tokenOut,
       Balance.from(amountIn),
       poolData
     );
-
-    Provable.log("amount out", calculatedAmountOut);
 
     // const amoutOutWithoutFee = calculatedAmountOut.sub(
     //   calculatedAmountOut.mul(3n).div(100000n)
