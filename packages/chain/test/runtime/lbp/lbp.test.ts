@@ -42,8 +42,7 @@ describe("lbp", () => {
 
   async function produceBlocks(nb: number) {
     for (let index = 0; index < nb; index++) {
-      const element = nb;
-
+      await appChain.produceBlock();
     }
   }
 
@@ -385,12 +384,8 @@ describe("lbp", () => {
         repayTarget,
         { nonce: nonce++ }
       );
+      await produceBlocks(10);
 
-      for (let index = 0; index < 10; index++) {
-
-        const block = await appChain.produceBlock();
-
-      }
     });
 
     it("should sell tokens for tokens out", async () => {
