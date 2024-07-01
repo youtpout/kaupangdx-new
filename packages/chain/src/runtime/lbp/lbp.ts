@@ -352,12 +352,12 @@ export class LBP extends RuntimeModule<LBPConfig> {
 
     Provable.log("amount out", calculatedAmountOut);
 
-    const amoutOutWithoutFee = calculatedAmountOut.sub(
-      calculatedAmountOut.mul(3n).div(100000n)
-    );
+    // const amoutOutWithoutFee = calculatedAmountOut.sub(
+    //   calculatedAmountOut.mul(3n).div(100000n)
+    // );
 
     amountOut = Balance.from(
-      Provable.if(pathBeginswWithExistingPool, Balance, amoutOutWithoutFee, amountOut).value
+      Provable.if(pathBeginswWithExistingPool, Balance, calculatedAmountOut, amountOut).value
     );
 
     amountIn = UInt64.from(

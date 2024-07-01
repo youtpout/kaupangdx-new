@@ -386,7 +386,7 @@ describe("lbp", () => {
         { nonce: nonce++ }
       );
 
-      for (let index = 0; index < 11; index++) {
+      for (let index = 0; index < 10; index++) {
 
         const block = await appChain.produceBlock();
 
@@ -394,12 +394,12 @@ describe("lbp", () => {
     });
 
     it("should sell tokens for tokens out", async () => {
-
+      // we want to buy the token A who is the main token for this lbp pool
       await sellPathSigned(
         appChain,
         alicePrivateKey,
-        tokenAId,
         tokenBId,
+        tokenAId,
         Balance.from(100),
         Balance.from(1),
         { nonce: nonce++ }
@@ -424,8 +424,9 @@ describe("lbp", () => {
         balanceB,
       });
 
-      expect(balanceA?.toString()).toEqual("999900");
-      expect(balanceB?.toString()).toEqual("1000099");
+      expect(balanceA?.toString()).toEqual("1000024");
+      expect(balanceB?.toString()).toEqual("999900");
+
 
     });
   });
