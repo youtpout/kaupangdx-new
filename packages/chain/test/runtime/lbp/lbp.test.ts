@@ -30,7 +30,7 @@ describe("lbp", () => {
   const initialWeight = UInt64.from(80_000_000);
   // 20 %
   const finalWeight = UInt64.from(20_000_000);
-  const feeLBP = new FeeLBP({ fee0: UInt64.from(2), fee1: UInt64.from(2) });
+  const feeLBP = new FeeLBP({ fee0: UInt64.from(2), fee1: UInt64.from(10) });
   const repayTarget = UInt64.from(1000);
 
   const lpTokenId = LPTokenId.fromTokenPair(TokenPair.from(tokenAId, tokenBId));
@@ -419,7 +419,7 @@ describe("lbp", () => {
         balanceB,
       });
 
-      expect(balanceA?.toString()).toEqual("1000024");
+      expect(balanceA?.toString()).toEqual("1000020");
       expect(balanceB?.toString()).toEqual("999900");
 
 

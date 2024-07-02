@@ -365,10 +365,12 @@ export class LBP extends RuntimeModule {
     let amountIn = UInt64.from(amount);
 
     // 0 if one of the fee is 0, 1 if fee are the same or amount/fee1*fee0
-    const amountCalculated = Provable.if(numerator.equals(UInt64.zero).or(denominator.equals(0)), UInt64, UInt64.zero,
-      Provable.if(denominator.equals(numerator), UInt64, amountIn, amountIn.div(denominator).mul(numerator)));
-
-    return UInt64.from(amountCalculated.value);
+    const isZero = numerator.equals(UInt64.zero).or(denominator.equals(UInt64.zero));
+    const isAmount = denominator.equals(numerator);
+    const paddedDivisor = UInt64.from(Provable.if(isZero, UInt64, UInt64.from(1), denominator).value);
+    let amountCalculated = UInt64.from(Provable.if(isZero, UInt64, UInt64.zero, amountIn.div(paddedDivisor).mul(numerator)).value);
+    amountCalculated = UInt64.from(Provable.if(isAmount, UInt64, amount, amountCalculated).value);
+    return amountCalculated;
   }
 
   public isRepayFeeApplied(repayTarget: UInt64): Bool {
