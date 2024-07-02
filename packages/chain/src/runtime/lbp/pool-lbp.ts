@@ -8,6 +8,16 @@ export class FeeLBP extends Struct({
   fee0: UInt64,
   fee1: UInt64
 }) {
+
+  static defaultRepayFee() {
+    /**
+     * Inspirated from hydra dx 
+        pub fn repay_fee() -> (u32, u32) {
+          (2, 10)
+        }
+     */
+    return new FeeLBP({ fee0: UInt64.from(2), fee1: UInt64.from(10) });
+  }
 }
 
 export class AssetPair extends Struct({

@@ -321,6 +321,7 @@ export class LBP extends RuntimeModule {
 
     assert(poolRunning, errors.SaleIsNotRunning());
 
+
     const calculatedAmountOut = this.calculateTokenOutAmount(
       tokenIn,
       tokenOut,
@@ -328,17 +329,20 @@ export class LBP extends RuntimeModule {
       poolData
     );
 
-    // const amoutOutWithoutFee = calculatedAmountOut.sub(
-    //   calculatedAmountOut.mul(3n).div(100000n)
-    // );
+    // calculate fees based on accumulated asset
+    const feeAsset = poolData.assets.tokenAId;
+    const feeAmount = UInt64.from(Provable.if(feeAsset.equals(tokenIn), UInt64, this.calculateFees(poolData, amountIn), this.calculateFees(poolData, calculatedAmountOut)).value);
+    const amountWithouFee = Provable.if(feeAsset.equals(tokenIn), UInt64, Balance.from(amountIn).sub(feeAmount), calculatedAmountOut.sub(feeAmount));
 
     amountOut = Balance.from(
-      Provable.if(pathBeginswWithExistingPool, Balance, calculatedAmountOut, amountOut).value
+      Provable.if(pathBeginswWithExistingPool, Balance, amountWithouFee, amountOut).value
     );
 
     amountIn = UInt64.from(
       Provable.if(pathBeginswWithExistingPool, Balance, amountIn, Balance.zero).value
     );
+
+
 
     this.balances.transfer(tokenIn, seller, initialPoolKey, amountIn);
 
@@ -348,6 +352,28 @@ export class LBP extends RuntimeModule {
     assert(isAmountOutMinLimitSufficient, errors.amountOutIsInsufficient());
 
     this.balances.transfer(tokenOut, initialPoolKey, seller, amountOut);
+  }
+
+  public calculateFees(pool: PoolLBP, amount: UInt64): UInt64 {
+    const fee = new FeeLBP(Provable.if(this.isRepayFeeApplied(pool.repayTarget), FeeLBP, FeeLBP.defaultRepayFee(), pool.fee));
+    return this.calculatePoolTradeFee(amount, fee.fee0, fee.fee1);
+  }
+
+  public calculatePoolTradeFee(amount: UInt64, fee0: UInt64, fee1: UInt64): UInt64 {
+    let numerator = UInt64.from(fee0);
+    let denominator = UInt64.from(fee1);
+    let amountIn = UInt64.from(amount);
+
+    // 0 if one of the fee is 0, 1 if fee are the same or amount/fee1*fee0
+    const amountCalculated = Provable.if(numerator.equals(UInt64.zero).or(denominator.equals(0)), UInt64, UInt64.zero,
+      Provable.if(denominator.equals(numerator), UInt64, amountIn, amountIn.div(denominator).mul(numerator)));
+
+    return UInt64.from(amountCalculated.value);
+  }
+
+  public isRepayFeeApplied(repayTarget: UInt64): Bool {
+    // todo calculate collected fees
+    return UInt64.from(100000000).lessThan(repayTarget);
   }
 
   @runtimeMethod()
