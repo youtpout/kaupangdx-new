@@ -3,7 +3,7 @@ import { Balance, TokenId, UInt64 } from "@proto-kit/library";
 import { PrivateKey, Provable, PublicKey, UInt64 as O1UInt64, Field, Poseidon } from "o1js";
 import { fromRuntime } from "../../testing-appchain";
 import { config, modules } from "../../../src/runtime";
-import { TokenIdPath, LBP, errors } from "../../../src/runtime/lbp/lbp";
+import { LBP, errors } from "../../../src/runtime/lbp/lbp";
 import { KaupangTestingAppChain, drip } from "../../helpers";
 import { PoolKey } from "../../../src/runtime/lbp/pool-key";
 import { TokenPair } from "../../../src/runtime/lbp/token-pair";

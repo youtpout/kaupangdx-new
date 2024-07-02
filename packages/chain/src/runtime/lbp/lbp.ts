@@ -45,24 +45,11 @@ export const MAX_WEIGHT: UInt64 = UInt64.from(100_000_000);
 /// Max sale duration is 14 days (not really 2 weeks due to time between blocks)
 export const MAX_SALE_DURATION: UInt64 = UInt64.from(60 * 60 * 24 * 14);
 
-export class TokenIdPath extends Struct({
-  path: Provable.Array(TokenId, MAX_PATH_LENGTH),
-}) {
-  public static from(path: TokenId[]) {
-    return new TokenIdPath({ path });
-  }
-}
-
-export interface LBPConfig {
-  feeDivider: bigint;
-  fee: bigint;
-}
-
 /**
  * Runtime module responsible for providing trading/management functionalities for LBP pools.
  */
 @runtimeModule()
-export class LBP extends RuntimeModule<LBPConfig> {
+export class LBP extends RuntimeModule {
   // all existing pools in the system
   @state() public pools = StateMap.from<PoolKey, PoolLBP>(PoolKey, PoolLBP);
   @state() public feeCollectorWithAsset = StateMap.from<FeeCollectorAssetKey, Bool>(FeeCollectorAssetKey, Bool);
