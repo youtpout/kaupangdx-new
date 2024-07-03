@@ -370,7 +370,7 @@ export class LBP extends RuntimeModule {
   }
 
   public calculateFees(pool: PoolLBP, amount: UInt64): UInt64 {
-    const fee = new FeeLBP(Provable.if(this.isRepayFeeApplied(pool.repayTarget), FeeLBP, FeeLBP.defaultRepayFee(), pool.fee));
+    const fee = new FeeLBP(Provable.if(this.isRepayFeeApplied(pool), FeeLBP, FeeLBP.defaultRepayFee(), pool.fee));
     return this.calculatePoolTradeFee(amount, fee.fee0, fee.fee1);
   }
 
@@ -388,9 +388,16 @@ export class LBP extends RuntimeModule {
     return amountCalculated;
   }
 
-  public isRepayFeeApplied(repayTarget: UInt64): Bool {
-    // todo calculate collected fees
-    return UInt64.from(100000000).lessThan(repayTarget);
+  // repay fee is applied until repay target amount is reached
+  public isRepayFeeApplied(poolData: PoolLBP): Bool {
+    const feeAsset = poolData.assets.tokenAccumulatedId;
+    const feeCollector = PublicKey.from(poolData.feeCollector);
+    const feeCollectorAsset = FeeCollectorAsset.from(feeCollector, feeAsset);
+    const feeCollectorAssetKey = FeeCollectorAssetKey.fromFeeCollectorAsset(feeCollectorAsset);
+    const currentCollected = UInt64.from(this.feeCollected.get(feeCollectorAssetKey).value);
+    const repayTarget = poolData.repayTarget;
+
+    return currentCollected.lessThan(repayTarget);
   }
 
   @runtimeMethod()
