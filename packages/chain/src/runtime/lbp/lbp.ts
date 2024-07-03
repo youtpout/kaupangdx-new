@@ -52,7 +52,8 @@ export const MAX_SALE_DURATION: UInt64 = UInt64.from(60 * 60 * 24 * 14);
 export class LBP extends RuntimeModule {
   // all existing pools in the system
   @state() public pools = StateMap.from<PoolKey, PoolLBP>(PoolKey, PoolLBP);
-  @state() public feeCollectorWithAsset = StateMap.from<FeeCollectorAssetKey, Bool>(FeeCollectorAssetKey, Bool);
+  // fee collected for one asset and one user, the same user cannot collect the same asset from different pools
+  @state() public feeCollected = StateMap.from<FeeCollectorAssetKey, UInt64>(FeeCollectorAssetKey, UInt64);
 
   /**
    * Provide access to the underlying Balances runtime to manipulate balances
@@ -69,8 +70,8 @@ export class LBP extends RuntimeModule {
     return this.pools.get(poolKey).isSome;
   }
 
-  public feeCollectorWithAssetExists(feeCollectorAssetKey: FeeCollectorAssetKey) {
-    return this.feeCollectorWithAsset.get(feeCollectorAssetKey).isSome;
+  public feeCollectedExists(feeCollectorAssetKey: FeeCollectorAssetKey) {
+    return this.feeCollected.get(feeCollectorAssetKey).isSome;
   }
 
   /**
@@ -119,7 +120,7 @@ export class LBP extends RuntimeModule {
     const feeCollectorAssetKey = FeeCollectorAssetKey.fromFeeCollectorAsset(feeCollectorAsset);
     const areTokensDistinct = tokenAId.equals(tokenBId).not();
     const poolDoesNotExist = this.poolExists(poolKey).not();
-    const feeCollectorAssetDoesNotExist = this.feeCollectorWithAssetExists(feeCollectorAssetKey).not();
+    const feeCollectorAssetDoesNotExist = this.feeCollectedExists(feeCollectorAssetKey).not();
     const now = UInt64.from(this.network.block.height);
     const nowLessThanStart = now.lessThan(start);
     const startLessThanEnd = start.lessThan(end);
@@ -162,12 +163,12 @@ export class LBP extends RuntimeModule {
       initialLPTokenSupply
     );
 
-    let assets = new AssetPair({ tokenAId, tokenBId });
+    let assets = new AssetPair({ tokenAccumulatedId: tokenAId, tokenSoldId: tokenBId });
     // store pool informations and fee collector pair
     const poolLBP = new PoolLBP({ owner: creator, start, end, assets, initialWeight, finalWeight, fee, feeCollector, repayTarget });
     this.pools.set(poolKey, poolLBP);
 
-    this.feeCollectorWithAsset.set(feeCollectorAssetKey, Bool(true));
+    this.feeCollected.set(feeCollectorAssetKey, UInt64.zero);
   }
 
 
@@ -250,8 +251,8 @@ export class LBP extends RuntimeModule {
     const reserveIn = this.balances.getBalance(tokenIn, pool);
     const reserveOut = this.balances.getBalance(tokenOut, pool);
 
-    const weightIn = UInt64.from(Provable.if(tokenIn.equals(poolData.assets.tokenAId), UInt64, poolData.initialWeight, poolData.finalWeight).value);
-    const weightOut = UInt64.from(Provable.if(tokenIn.equals(poolData.assets.tokenAId), UInt64, poolData.finalWeight, poolData.initialWeight).value);
+    const weightIn = UInt64.from(Provable.if(tokenIn.equals(poolData.assets.tokenAccumulatedId), UInt64, poolData.initialWeight, poolData.finalWeight).value);
+    const weightOut = UInt64.from(Provable.if(tokenIn.equals(poolData.assets.tokenAccumulatedId), UInt64, poolData.finalWeight, poolData.initialWeight).value);
 
     const start = UInt64.from(poolData.start);
     const end = UInt64.from(poolData.end);
@@ -330,7 +331,7 @@ export class LBP extends RuntimeModule {
     );
 
     // calculate fees based on accumulated asset
-    const feeAsset = poolData.assets.tokenAId;
+    const feeAsset = poolData.assets.tokenAccumulatedId;
     const feeAmount = UInt64.from(Provable.if(feeAsset.equals(tokenIn), UInt64, this.calculateFees(poolData, amountIn), this.calculateFees(poolData, calculatedAmountOut)).value);
     const amountWithouFee = Provable.if(feeAsset.equals(tokenIn), UInt64, Balance.from(amountIn).sub(feeAmount), calculatedAmountOut.sub(feeAmount));
 
@@ -342,15 +343,29 @@ export class LBP extends RuntimeModule {
       Provable.if(pathBeginswWithExistingPool, Balance, amountIn, Balance.zero).value
     );
 
-
-
-    this.balances.transfer(tokenIn, seller, initialPoolKey, amountIn);
-
     const isAmountOutMinLimitSufficient =
       amountOut.greaterThanOrEqual(amountOutMinLimit);
 
     assert(isAmountOutMinLimitSufficient, errors.amountOutIsInsufficient());
 
+    // update fee collected informations
+    const feeCollector = PublicKey.from(poolData.feeCollector);
+    const feeCollectorAsset = FeeCollectorAsset.from(feeCollector, feeAsset);
+    const feeCollectorAssetKey = FeeCollectorAssetKey.fromFeeCollectorAsset(feeCollectorAsset);
+    const currentCollected = UInt64.from(this.feeCollected.get(feeCollectorAssetKey).value);
+    const newTotal = currentCollected.add(feeAmount);
+    this.feeCollected.set(feeCollectorAssetKey, newTotal);
+
+    // Fee is deducted from the sent out amount of accumulated asset and transferred to the fee collector
+    const feePayer = Provable.if(feeAsset.equals(tokenIn), PublicKey, seller, initialPoolKey);
+
+    // paid the fees to fee collector
+    this.balances.transfer(feeAsset, feePayer, feeCollector, feeAmount);
+
+    // transfer token in from the user to the pool
+    this.balances.transfer(tokenIn, seller, initialPoolKey, amountIn);
+
+    // transfer token out from the pool to the user
     this.balances.transfer(tokenOut, initialPoolKey, seller, amountOut);
   }
 

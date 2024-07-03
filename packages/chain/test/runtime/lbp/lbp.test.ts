@@ -205,7 +205,7 @@ describe("lbp", () => {
 
       // check pool value match
       expect(pool).toBeDefined();
-      expect(pool?.assets).toEqual(new AssetPair({ tokenAId, tokenBId }));
+      expect(pool?.assets).toEqual(new AssetPair({ tokenAccumulatedId: tokenAId, tokenSoldId: tokenBId }));
       expect(pool?.end.toBigInt()).toEqual(end.toBigInt());
       expect(pool?.start.toBigInt()).toEqual(start.toBigInt());
       expect(pool?.owner).toEqual(alice);

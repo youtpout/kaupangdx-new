@@ -21,8 +21,8 @@ export class FeeLBP extends Struct({
 }
 
 export class AssetPair extends Struct({
-  tokenAId: TokenId,
-  tokenBId: TokenId
+  tokenAccumulatedId: TokenId,
+  tokenSoldId: TokenId
 }) {
 }
 
