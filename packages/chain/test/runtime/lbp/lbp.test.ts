@@ -12,6 +12,7 @@ import { LPTokenId } from "../../../src/runtime/lbp/lp-token-id";
 import { LPTokenId as LPTokenIdXYK } from "../../../src/runtime/xyk/lp-token-id";
 import { MAX_TOKEN_ID } from "../../../src/runtime/token-registry";
 import { AssetPair, FeeLBP } from "../../../src/runtime/lbp/pool-lbp";
+import { XYK } from "../../../src/runtime/xyk/xyk";
 
 describe("lbp", () => {
   const alicePrivateKey = PrivateKey.random();
@@ -37,6 +38,7 @@ describe("lbp", () => {
 
   let appChain: ReturnType<typeof fromRuntime<typeof modules>>;
   let lbp: LBP;
+  let xyk: XYK;
 
   let nonce = 0;
 
@@ -68,6 +70,32 @@ describe("lbp", () => {
       senderPrivateKey.toPublicKey(),
       () => {
         lbp.createPoolSigned(tokenAId, tokenBId, tokenAAmount, tokenBAmount, start, end, initialWeight, finalWeight, fee, feeCollector, repayTarget);
+      },
+      options
+    );
+
+    await tx.sign();
+    await tx.send();
+
+    return tx;
+  }
+
+  async function createPoolSignedXyk(
+    appChain: KaupangTestingAppChain,
+    senderPrivateKey: PrivateKey,
+    tokenAId: TokenId,
+    tokenBId: TokenId,
+    tokenAAmount: Balance,
+    tokenBAmount: Balance,
+    options?: { nonce: number }
+  ) {
+    appChain.setSigner(senderPrivateKey);
+
+    console.log("nonce", options?.nonce);
+    const tx = await appChain.transaction(
+      senderPrivateKey.toPublicKey(),
+      () => {
+        xyk.createPoolSigned(tokenAId, tokenBId, tokenAAmount, tokenBAmount);
       },
       options
     );
@@ -423,6 +451,81 @@ describe("lbp", () => {
       expect(balanceB?.toString()).toEqual("999900");
 
 
+    });
+  });
+
+  describe("migrate pool", () => {
+    beforeAll(async () => {
+      appChain = fromRuntime(modules);
+
+      appChain.configurePartial({
+        Runtime: config,
+      });
+
+      await appChain.start();
+      appChain.setSigner(alicePrivateKey);
+
+      lbp = appChain.runtime.resolve("LBP");
+      xyk = appChain.runtime.resolve("XYK");
+
+      await drip(appChain, alicePrivateKey, tokenAId, tokenAInitialLiquidity, {
+        nonce: nonce++,
+      });
+      await drip(appChain, alicePrivateKey, tokenBId, tokenBInitialLiquidity, {
+        nonce: nonce++,
+      });
+
+      await createPoolSigned(
+        appChain,
+        alicePrivateKey,
+        tokenAId,
+        tokenBId,
+        tokenAInitialLiquidity,
+        tokenBInitialLiquidity,
+        start,
+        end,
+        initialWeight,
+        finalWeight,
+        feeLBP,
+        bob,
+        repayTarget,
+        { nonce: nonce++ }
+      );
+
+      await appChain.produceBlock();
+
+      const nbPool = await appChain.query.runtime.TokenRegistry.lastTokenIdId.get()
+
+      console.log("nbPool lbp", nbPool?.toString());
+    });
+
+
+    it("should not create a xyk pool if the lbp pool already exists", async () => {
+      const accountState = await appChain.query.protocol.AccountState.accountState.get(alice);
+      console.log("alice accountstate", accountState);
+      let newNonce = 0;
+      if (accountState) {
+        newNonce = parseInt(accountState.nonce.toString()) + 1;
+      }
+      await createPoolSignedXyk(
+        appChain,
+        alicePrivateKey,
+        tokenAId,
+        tokenBId,
+        UInt64.zero,
+        UInt64.zero,
+        { nonce: newNonce }
+      );
+
+      const block = await appChain.produceBlock();
+      const tx = block?.transactions[0];
+
+      const nbPool = await appChain.query.runtime.TokenRegistry.lastTokenIdId.get()
+
+      console.log("nbPool xyk", nbPool?.toString());
+
+      // expect(tx?.status.toBoolean()).toBe(false);
+      // expect(tx?.statusMessage).toBe(errors.poolAlreadyExists());
     });
   });
 });

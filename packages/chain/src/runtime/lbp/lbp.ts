@@ -16,6 +16,7 @@ import { Balances } from "../balances";
 import { AssetPair, FeeLBP, PoolLBP } from "./pool-lbp";
 import { FeeCollectorAssetKey } from "./fee-collector-asset-key";
 import { FeeCollectorAsset } from "./fee-collector-asset";
+import { NoConfig } from "@proto-kit/common";
 
 
 export const errors = {
@@ -49,7 +50,7 @@ export const MAX_SALE_DURATION: UInt64 = UInt64.from(60 * 60 * 24 * 14);
  * Runtime module responsible for providing trading/management functionalities for LBP pools.
  */
 @runtimeModule()
-export class LBP extends RuntimeModule {
+export class LBP extends RuntimeModule<NoConfig> {
   // all existing pools in the system
   @state() public pools = StateMap.from<PoolKey, PoolLBP>(PoolKey, PoolLBP);
   // fee collected for one asset and one user, the same user cannot collect the same asset from different pools

@@ -40,10 +40,7 @@ export const config: ModulesConfig<
     feeDivider: 1000n,
     fee: 3n, //
   },
-  LBP: {
-    feeDivider: 1000n,
-    fee: 3n, //
-  },
+  LBP: {},
 };
 
 export default {
