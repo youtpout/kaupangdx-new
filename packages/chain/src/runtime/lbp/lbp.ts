@@ -34,7 +34,8 @@ export const errors = {
   MaxSaleDurationExceeded: () => `Duration of the LBP sale should not exceed 2 weeks`,
   InvalidWeight: () => `Invalid weight`,
   FeeAmountInvalid: () => `Invalid fee amount`,
-  SaleIsNotRunning: () => `Sale is not running`
+  SaleIsNotRunning: () => `Sale is not running`,
+  poolXykAlreadyExists: () => `A xyk pool with same tokens already exists`,
 };
 
 // we need a placeholder pool value until protokit supports value-less dictonaries or state arrays
@@ -157,7 +158,9 @@ export class LBP extends RuntimeModule<NoConfig> {
       ).value
     );
 
-    this.tokenRegistry.addTokenPair(tokenAId, tokenBId, Bool(false), Bool(true));
+    const success = this.tokenRegistry.addTokenPair(tokenAId, tokenBId, Bool(false), Bool(true));
+    assert(success, errors.poolXykAlreadyExists());
+
     this.balances.mintAndIncrementSupply(
       lpTokenId,
       creator,

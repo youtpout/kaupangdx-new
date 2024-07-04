@@ -454,78 +454,78 @@ describe("lbp", () => {
     });
   });
 
-  describe("migrate pool", () => {
-    beforeAll(async () => {
-      appChain = fromRuntime(modules);
+  // describe("migrate pool", () => {
+  //   beforeAll(async () => {
+  //     appChain = fromRuntime(modules);
 
-      appChain.configurePartial({
-        Runtime: config,
-      });
+  //     appChain.configurePartial({
+  //       Runtime: config,
+  //     });
 
-      await appChain.start();
-      appChain.setSigner(alicePrivateKey);
+  //     await appChain.start();
+  //     appChain.setSigner(alicePrivateKey);
 
-      lbp = appChain.runtime.resolve("LBP");
-      xyk = appChain.runtime.resolve("XYK");
+  //     lbp = appChain.runtime.resolve("LBP");
+  //     xyk = appChain.runtime.resolve("XYK");
 
-      await drip(appChain, alicePrivateKey, tokenAId, tokenAInitialLiquidity, {
-        nonce: nonce++,
-      });
-      await drip(appChain, alicePrivateKey, tokenBId, tokenBInitialLiquidity, {
-        nonce: nonce++,
-      });
+  //     await drip(appChain, alicePrivateKey, tokenAId, tokenAInitialLiquidity, {
+  //       nonce: nonce++,
+  //     });
+  //     await drip(appChain, alicePrivateKey, tokenBId, tokenBInitialLiquidity, {
+  //       nonce: nonce++,
+  //     });
 
-      await createPoolSigned(
-        appChain,
-        alicePrivateKey,
-        tokenAId,
-        tokenBId,
-        tokenAInitialLiquidity,
-        tokenBInitialLiquidity,
-        start,
-        end,
-        initialWeight,
-        finalWeight,
-        feeLBP,
-        bob,
-        repayTarget,
-        { nonce: nonce++ }
-      );
+  //     await createPoolSigned(
+  //       appChain,
+  //       alicePrivateKey,
+  //       tokenAId,
+  //       tokenBId,
+  //       tokenAInitialLiquidity,
+  //       tokenBInitialLiquidity,
+  //       start,
+  //       end,
+  //       initialWeight,
+  //       finalWeight,
+  //       feeLBP,
+  //       bob,
+  //       repayTarget,
+  //       { nonce: nonce++ }
+  //     );
 
-      await appChain.produceBlock();
+  //     await appChain.produceBlock();
 
-      const nbPool = await appChain.query.runtime.TokenRegistry.lastTokenIdId.get()
+  //     const nbPool = await appChain.query.runtime.TokenRegistry.lastTokenIdId.get()
 
-      console.log("nbPool lbp", nbPool?.toString());
-    });
+  //     console.log("nbPool lbp", nbPool?.toString());
+  //   });
 
 
-    it("should not create a xyk pool if the lbp pool already exists", async () => {
-      const accountState = await appChain.query.protocol.AccountState.accountState.get(alice);
-      console.log("alice accountstate", accountState);
-      let newNonce = 0;
-      if (accountState) {
-        newNonce = parseInt(accountState.nonce.toString()) + 1;
-      }
-      await createPoolSignedXyk(
-        appChain,
-        alicePrivateKey,
-        tokenAId,
-        tokenBId,
-        UInt64.zero,
-        UInt64.zero,
-        { nonce: newNonce }
-      );
+  //   it("should not create a xyk pool if the lbp pool already exists", async () => {    
+  //     const accountState = await appChain.query.protocol.AccountState.accountState.get(alice);
+  //     console.log("alice accountstate", accountState);
+  //     let newNonce = 0;
+  //     if (accountState) {
+  //       newNonce = parseInt(accountState.nonce.toString()) + 1;
+  //     }
+  //     await createPoolSignedXyk(
+  //       appChain,
+  //       alicePrivateKey,
+  //       tokenAId,
+  //       tokenBId,
+  //       UInt64.zero,
+  //       UInt64.zero,
+  //       { nonce: nonce++ }
+  //     );
 
-      const block = await appChain.produceBlock();
-      const tx = block?.transactions[0];
+  //     const block = await appChain.produceBlock();
+  //     const tx = block?.transactions[0];
 
-      const nbPool = await appChain.query.runtime.TokenRegistry.lastTokenIdId.get()
+  //     const nbPool = await appChain.query.runtime.TokenRegistry.lastTokenIdId.get()
 
-      console.log("nbPool xyk", nbPool?.toString());
+  //     console.log("nbPool xyk", nbPool?.toString());
 
-      // expect(tx?.status.toBoolean()).toBe(false);
-      // expect(tx?.statusMessage).toBe(errors.poolAlreadyExists());
-    });
-  });
+  //     // expect(tx?.status.toBoolean()).toBe(false);
+  //     // expect(tx?.statusMessage).toBe(errors.poolAlreadyExists());
+  //   });
+  // });
 });

@@ -40,9 +40,6 @@ export class TokenRegistry extends RuntimeModule<NoConfig> {
     const existXyk = this.tokenIdExist(lpTokenIdXyk);
     const existLbp = this.tokenIdExist(lpTokenIdLbp);
 
-    assert(existXyk.not(), errors.tokenXYKAlreadyExist());
-    assert(checkLbp.and(existLbp).not(), errors.tokenLBPAlreadyExist());
-
     const tokenIdToAdd = Provable.if(isXyk, TokenId, lpTokenIdXyk, lpTokenIdLbp);
 
     const lastTokenIdId = this.lastTokenIdId.get().value;
@@ -51,6 +48,9 @@ export class TokenRegistry extends RuntimeModule<NoConfig> {
     this.lastTokenIdId.set(nextTokenIdId);
     this.tokenIds.set(nextTokenIdId, tokenIdToAdd);
     this.tokenIdList.set(tokenIdToAdd, nextTokenIdId);
+
+    const success = existXyk.not().and(checkLbp.and(existLbp).not());
+    return success;
   }
 
   public tokenIdExist(tokenId: TokenId) {
