@@ -27,14 +27,6 @@ export class TokenRegistry extends RuntimeModule<NoConfig> {
   @state() lastTokenIdId = State.from(TokenIdId);
   @state() tokenIdList = StateMap.from<TokenId, TokenIdId>(TokenId, TokenIdId);
 
-  public addTokenId(tokenId: TokenId) {
-    const lastTokenIdId = this.lastTokenIdId.get().value;
-    const nextTokenIdId = lastTokenIdId.add(1);
-
-    this.lastTokenIdId.set(nextTokenIdId);
-    this.tokenIds.set(nextTokenIdId, tokenId);
-  }
-
   /**
    * Prevents the creation of the same pool accross runtime
    */
@@ -49,7 +41,7 @@ export class TokenRegistry extends RuntimeModule<NoConfig> {
     const existLbp = this.tokenIdExist(lpTokenIdLbp);
 
     assert(existXyk.not(), errors.tokenXYKAlreadyExist());
-    assert(checkLbp.and(existLbp.not()), errors.tokenLBPAlreadyExist());
+    assert(checkLbp.and(existLbp).not(), errors.tokenLBPAlreadyExist());
 
     const tokenIdToAdd = Provable.if(isXyk, TokenId, lpTokenIdXyk, lpTokenIdLbp);
 

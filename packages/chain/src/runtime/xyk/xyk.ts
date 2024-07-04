@@ -108,7 +108,7 @@ export class XYK extends RuntimeModule<XYKConfig> {
       ).value
     );
 
-    this.tokenRegistry.addTokenId(lpTokenId);
+    this.tokenRegistry.addTokenPair(tokenAId, tokenBId, Bool(true), Bool(true));
     this.balances.mintAndIncrementSupply(
       lpTokenId,
       creator,

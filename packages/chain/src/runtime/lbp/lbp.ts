@@ -156,7 +156,7 @@ export class LBP extends RuntimeModule {
       ).value
     );
 
-    this.tokenRegistry.addTokenId(lpTokenId);
+    this.tokenRegistry.addTokenPair(tokenAId, tokenBId, Bool(false), Bool(true));
     this.balances.mintAndIncrementSupply(
       lpTokenId,
       creator,
