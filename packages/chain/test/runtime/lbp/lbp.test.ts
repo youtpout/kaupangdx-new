@@ -225,10 +225,12 @@ describe("lbp", () => {
       await appChain.produceBlock();
 
       const { pool, liquidity } = await queryPool(appChain, tokenAId, tokenBId);
-      const { balance: aliceLpBalance } = await queryBalance(
+
+      const poolKey = PoolKey.fromTokenPair(TokenPair.from(tokenAId, tokenBId));
+      const { balance: poolLpBalance } = await queryBalance(
         appChain,
         lpTokenId,
-        alice
+        poolKey
       );
 
       // check pool value match
@@ -251,7 +253,7 @@ describe("lbp", () => {
       expect(liquidity.tokenB?.toString()).toEqual(
         tokenBInitialLiquidity.toString()
       );
-      expect(aliceLpBalance?.toString()).toEqual(
+      expect(poolLpBalance?.toString()).toEqual(
         tokenAInitialLiquidity.toString()
       );
     });

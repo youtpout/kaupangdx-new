@@ -17,6 +17,7 @@ import { AssetPair, FeeLBP, PoolLBP } from "./pool-lbp";
 import { FeeCollectorAssetKey } from "./fee-collector-asset-key";
 import { FeeCollectorAsset } from "./fee-collector-asset";
 import { NoConfig } from "@proto-kit/common";
+import { XYK } from "../xyk/xyk";
 
 
 export const errors = {
@@ -36,6 +37,9 @@ export const errors = {
   FeeAmountInvalid: () => `Invalid fee amount`,
   SaleIsNotRunning: () => `Sale is not running`,
   poolXykAlreadyExists: () => `A xyk pool with same tokens already exists`,
+  poolNotEnd: () => `The pool is still running`,
+  notOwner: () => `Caller is not owner`,
+  poolEmpty: () => `Pool is empty`,
 };
 
 // we need a placeholder pool value until protokit supports value-less dictonaries or state arrays
@@ -63,7 +67,8 @@ export class LBP extends RuntimeModule<NoConfig> {
    */
   public constructor(
     @inject("Balances") public balances: Balances,
-    @inject("TokenRegistry") public tokenRegistry: TokenRegistry
+    @inject("TokenRegistry") public tokenRegistry: TokenRegistry,
+    @inject("XYK") public xyk: XYK
   ) {
     super();
   }
@@ -161,9 +166,10 @@ export class LBP extends RuntimeModule<NoConfig> {
     const success = this.tokenRegistry.addTokenPair(tokenAId, tokenBId, Bool(false), Bool(true));
     assert(success, errors.poolXykAlreadyExists());
 
+    // the pool owned the liquidity
     this.balances.mintAndIncrementSupply(
       lpTokenId,
-      creator,
+      poolKey,
       initialLPTokenSupply
     );
 
@@ -404,6 +410,50 @@ export class LBP extends RuntimeModule<NoConfig> {
     return currentCollected.lessThan(repayTarget);
   }
 
+  public migratePool(
+    creator: PublicKey,
+    tokenAId: TokenId,
+    tokenBId: TokenId
+  ) {
+    const tokenPair = TokenPair.from(tokenAId, tokenBId);
+    const poolKey = PoolKey.fromTokenPair(tokenPair);
+    const pathBeginswWithExistingPool = this.poolExists(poolKey);
+
+    assert(pathBeginswWithExistingPool, errors.poolDoesNotExist());
+
+    const poolFromStorage = this.pools.get(poolKey);
+    const poolData = new PoolLBP(poolFromStorage.value);
+    const now = UInt64.from(this.network.block.height);
+    const poolEnded = poolData.end.lessThan(now);
+    const isOwner = poolData.owner.equals(creator);
+
+    assert(poolEnded, errors.poolNotEnd());
+    assert(isOwner, errors.notOwner());
+
+    const lpTokenId = LPTokenId.fromTokenPair(tokenPair);
+    const lpTokenTotalSupply = this.balances.getTotalSupply(lpTokenId);
+    const lpTokenTotalSupplyIsZero = lpTokenTotalSupply.equals(Balance.from(0));
+    const adjustedLpTokenTotalSupply = Balance.from(
+      Provable.if(
+        lpTokenTotalSupplyIsZero,
+        Balance.from(1).value,
+        lpTokenTotalSupply.value
+      )
+    );
+    const reserveA = this.balances.getBalance(tokenAId, poolKey);
+    const reserveB = this.balances.getBalance(tokenBId, poolKey);
+
+    const isEmpty = reserveA.equals(UInt64.zero).or(reserveB.equals(UInt64.zero));
+    assert(isEmpty.not(), errors.poolEmpty());
+
+    // this function will directly transfer reserve from lbp pool to the new xyk pool
+    // and mint liquidity for the creator
+    this.xyk.migrateLbpPool(creator, poolKey, tokenAId, tokenBId, reserveA, reserveB);
+
+    this.balances.burnAndDecrementSupply(lpTokenId, poolKey, adjustedLpTokenTotalSupply);
+
+  }
+
   @runtimeMethod()
   public createPoolSigned(
     tokenAId: TokenId,
@@ -443,5 +493,14 @@ export class LBP extends RuntimeModule<NoConfig> {
   @runtimeMethod()
   public getLinearWeight(startX: UInt64, endX: UInt64, startY: UInt64, endY: UInt64, at: UInt64) {
     return this.calculateLinearWeight(UInt64.from(startX), UInt64.from(endX), UInt64.from(startY), UInt64.from(endY), UInt64.from(at));
+  }
+
+  @runtimeMethod()
+  public migratePoolSigned(
+    tokenAId: TokenId,
+    tokenBId: TokenId
+  ) {
+    const creator = this.transaction.sender.value;
+    this.migratePool(creator, tokenAId, tokenBId);
   }
 }
