@@ -10,9 +10,8 @@ import { TokenPair } from "../../../src/runtime/lbp/token-pair";
 import { TokenPair as TokenPairXYK } from "../../../src/runtime/xyk/token-pair";
 import { LPTokenId } from "../../../src/runtime/lbp/lp-token-id";
 import { LPTokenId as LPTokenIdXYK } from "../../../src/runtime/xyk/lp-token-id";
-import { MAX_TOKEN_ID } from "../../../src/runtime/token-registry";
 import { AssetPair, FeeLBP } from "../../../src/runtime/lbp/pool-lbp";
-import { XYK } from "../../../src/runtime/xyk/xyk";
+import { XYK, errors as errorsXyk } from "../../../src/runtime/xyk/xyk";
 
 describe("lbp", () => {
   const alicePrivateKey = PrivateKey.random();
@@ -91,11 +90,33 @@ describe("lbp", () => {
   ) {
     appChain.setSigner(senderPrivateKey);
 
-    console.log("nonce", options?.nonce);
     const tx = await appChain.transaction(
       senderPrivateKey.toPublicKey(),
       () => {
         xyk.createPoolSigned(tokenAId, tokenBId, tokenAAmount, tokenBAmount);
+      },
+      options
+    );
+
+    await tx.sign();
+    await tx.send();
+
+    return tx;
+  }
+
+  async function migratePool(
+    appChain: KaupangTestingAppChain,
+    senderPrivateKey: PrivateKey,
+    tokenAId: TokenId,
+    tokenBId: TokenId,
+    options?: { nonce: number }
+  ) {
+    appChain.setSigner(senderPrivateKey);
+
+    const tx = await appChain.transaction(
+      senderPrivateKey.toPublicKey(),
+      () => {
+        lbp.migratePoolSigned(tokenAId, tokenBId);
       },
       options
     );
@@ -116,9 +137,6 @@ describe("lbp", () => {
     options?: { nonce: number }
   ) {
     appChain.setSigner(senderPrivateKey);
-
-    const pooldata = await appChain.query.runtime.LBP.pools.get(PublicKey.fromBase58("B62qnpJVLfHJrSHcW7A1osf6EZd7VK8BYaMq3Y7K1YJK1CiKZ2tH7tV"));
-    console.log("pooldata end on sellpathsigned", pooldata?.end.toString());
 
     const tx = await appChain.transaction(
       senderPrivateKey.toPublicKey(),
@@ -419,7 +437,7 @@ describe("lbp", () => {
     });
 
     it("should sell tokens for tokens out", async () => {
-      // we want to buy the token A who is the main token for this lbp pool
+
       await sellPathSigned(
         appChain,
         alicePrivateKey,
@@ -456,78 +474,125 @@ describe("lbp", () => {
     });
   });
 
-  // describe("migrate pool", () => {
-  //   beforeAll(async () => {
-  //     appChain = fromRuntime(modules);
+  describe("migrate pool", () => {
+    beforeAll(async () => {
+      appChain = fromRuntime(modules);
+      nonce = 0;
 
-  //     appChain.configurePartial({
-  //       Runtime: config,
-  //     });
+      appChain.configurePartial({
+        Runtime: config,
+      });
 
-  //     await appChain.start();
-  //     appChain.setSigner(alicePrivateKey);
+      await appChain.start();
+      appChain.setSigner(alicePrivateKey);
 
-  //     lbp = appChain.runtime.resolve("LBP");
-  //     xyk = appChain.runtime.resolve("XYK");
+      lbp = appChain.runtime.resolve("LBP");
+      xyk = appChain.runtime.resolve("XYK");
 
-  //     await drip(appChain, alicePrivateKey, tokenAId, tokenAInitialLiquidity, {
-  //       nonce: nonce++,
-  //     });
-  //     await drip(appChain, alicePrivateKey, tokenBId, tokenBInitialLiquidity, {
-  //       nonce: nonce++,
-  //     });
+      await drip(appChain, alicePrivateKey, tokenAId, tokenAInitialLiquidity.mul(3), {
+        nonce: nonce++,
+      });
+      await drip(appChain, alicePrivateKey, tokenBId, tokenBInitialLiquidity.mul(3), {
+        nonce: nonce++,
+      });
 
-  //     await createPoolSigned(
-  //       appChain,
-  //       alicePrivateKey,
-  //       tokenAId,
-  //       tokenBId,
-  //       tokenAInitialLiquidity,
-  //       tokenBInitialLiquidity,
-  //       start,
-  //       end,
-  //       initialWeight,
-  //       finalWeight,
-  //       feeLBP,
-  //       bob,
-  //       repayTarget,
-  //       { nonce: nonce++ }
-  //     );
+      await createPoolSigned(
+        appChain,
+        alicePrivateKey,
+        tokenAId,
+        tokenBId,
+        tokenAInitialLiquidity,
+        tokenBInitialLiquidity,
+        start,
+        end,
+        initialWeight,
+        finalWeight,
+        feeLBP,
+        bob,
+        repayTarget,
+        { nonce: nonce++ }
+      );
 
-  //     await appChain.produceBlock();
-
-  //     const nbPool = await appChain.query.runtime.TokenRegistry.lastTokenIdId.get()
-
-  //     console.log("nbPool lbp", nbPool?.toString());
-  //   });
+      await appChain.produceBlock();
+    });
 
 
-  //   it("should not create a xyk pool if the lbp pool already exists", async () => {    
-  //     const accountState = await appChain.query.protocol.AccountState.accountState.get(alice);
-  //     console.log("alice accountstate", accountState);
-  //     let newNonce = 0;
-  //     if (accountState) {
-  //       newNonce = parseInt(accountState.nonce.toString()) + 1;
-  //     }
-  //     await createPoolSignedXyk(
-  //       appChain,
-  //       alicePrivateKey,
-  //       tokenAId,
-  //       tokenBId,
-  //       UInt64.zero,
-  //       UInt64.zero,
-  //       { nonce: nonce++ }
-  //     );
+    it("should not create a xyk pool if the lbp pool already exists", async () => {
+      await createPoolSignedXyk(
+        appChain,
+        alicePrivateKey,
+        tokenAId,
+        tokenBId,
+        tokenAInitialLiquidity,
+        tokenBInitialLiquidity,
+        { nonce: nonce++ }
+      );
 
-  //     const block = await appChain.produceBlock();
-  //     const tx = block?.transactions[0];
+      const block = await appChain.produceBlock();
+      const tx = block?.transactions[0];
 
-  //     const nbPool = await appChain.query.runtime.TokenRegistry.lastTokenIdId.get()
+      expect(tx?.status.toBoolean()).toBe(false);
+      expect(tx?.statusMessage).toBe(errorsXyk.poolLbpAlreadyExists());
+    });
 
-  //     console.log("nbPool xyk", nbPool?.toString());
 
-  //     // expect(tx?.status.toBoolean()).toBe(false);
-  //     // expect(tx?.statusMessage).toBe(errors.poolAlreadyExists());
-  //   });
-  // });
+    it("should migrate the pool", async () => {
+      await produceBlocks(10);
+      await sellPathSigned(
+        appChain,
+        alicePrivateKey,
+        tokenBId,
+        tokenAId,
+        Balance.from(100),
+        Balance.from(1),
+        { nonce: nonce++ }
+      );
+
+      const block = await appChain.produceBlock();
+      const tx = block?.transactions[0];
+      expect(tx?.status.toBoolean()).toBe(true);
+
+      // try migrate will fail due to pool not end
+      await migratePool(appChain,
+        alicePrivateKey,
+        tokenBId,
+        tokenAId,
+        { nonce: nonce++ });
+
+
+      const block2 = await appChain.produceBlock();
+      const tx2 = block2?.transactions[0];
+
+      expect(tx2?.status.toBoolean()).toBe(false);
+      expect(tx2?.statusMessage).toBe(errors.poolNotEnd());
+
+      await produceBlocks(1000);
+
+      // migration successfull
+      await migratePool(appChain,
+        alicePrivateKey,
+        tokenBId,
+        tokenAId,
+        { nonce: nonce++ });
+
+
+      const block3 = await appChain.produceBlock();
+      const tx3 = block3?.transactions[0];
+      expect(tx3?.status.toBoolean()).toBe(true);
+
+      // already migrated
+      await migratePool(appChain,
+        alicePrivateKey,
+        tokenBId,
+        tokenAId,
+        { nonce: nonce++ });
+
+
+      const block4 = await appChain.produceBlock();
+      const tx4 = block4?.transactions[0];
+
+      expect(tx4?.status.toBoolean()).toBe(false);
+      expect(tx4?.statusMessage).toBe(errors.poolEmpty());
+    });
+  });
 });
