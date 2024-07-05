@@ -6,6 +6,7 @@ import { config, modules } from "../../../src/runtime";
 import { LBP, errors } from "../../../src/runtime/lbp/lbp";
 import { KaupangTestingAppChain, drip } from "../../helpers";
 import { PoolKey } from "../../../src/runtime/lbp/pool-key";
+import { PoolKey as PoolKeyXyk } from "../../../src/runtime/xyk/pool-key";
 import { TokenPair } from "../../../src/runtime/lbp/token-pair";
 import { TokenPair as TokenPairXYK } from "../../../src/runtime/xyk/token-pair";
 import { LPTokenId } from "../../../src/runtime/lbp/lp-token-id";
@@ -160,6 +161,27 @@ describe("lbp", () => {
     const address = PoolKey.fromTokenPair(TokenPair.from(tokenAId, tokenBId));
     return {
       pool: await appChain.query.runtime.LBP.pools.get(address),
+      liquidity: {
+        tokenA: await appChain.query.runtime.Balances.balances.get({
+          address,
+          tokenId: tokenAId,
+        }),
+        tokenB: await appChain.query.runtime.Balances.balances.get({
+          address,
+          tokenId: tokenBId,
+        }),
+      },
+    };
+  }
+
+  async function queryPoolXyk(
+    appChain: KaupangTestingAppChain,
+    tokenAId: TokenId,
+    tokenBId: TokenId
+  ) {
+    const address = PoolKeyXyk.fromTokenPair(TokenPairXYK.from(tokenAId, tokenBId));
+    return {
+      pool: await appChain.query.runtime.XYK.pools.get(address),
       liquidity: {
         tokenA: await appChain.query.runtime.Balances.balances.get({
           address,
@@ -580,6 +602,10 @@ describe("lbp", () => {
       const tx3 = block3?.transactions[0];
       expect(tx3?.status.toBoolean()).toBe(true);
 
+      const { pool, liquidity } = await queryPool(appChain, tokenAId, tokenBId);
+      expect(liquidity.tokenA?.toBigInt()).toEqual(0n);
+      expect(liquidity.tokenB?.toBigInt()).toEqual(0n);
+
       // already migrated
       await migratePool(appChain,
         alicePrivateKey,
@@ -593,6 +619,11 @@ describe("lbp", () => {
 
       expect(tx4?.status.toBoolean()).toBe(false);
       expect(tx4?.statusMessage).toBe(errors.poolEmpty());
+
+
+      const { pool: poolxyk, liquidity: liquidityxyk } = await queryPoolXyk(appChain, tokenAId, tokenBId);
+      expect(liquidityxyk.tokenA?.toBigInt()).toBeGreaterThan(100n);
+      expect(liquidityxyk.tokenB?.toBigInt()).toBeGreaterThan(100n);
     });
   });
 });
