@@ -24,6 +24,7 @@ export const errors = {
   reserveAIsZero: () => `Reserve A must be greater than zero`,
   lpTokenSupplyIsZero: () => `LP token supply is zero`,
   amountOutIsInsufficient: () => `Amount out is insufficient`,
+  poolLbpAlreadyExists: () => `A lbp pool with same tokens already exists`,
 };
 
 // we need a placeholder pool value until protokit supports value-less dictonaries or state arrays
@@ -108,7 +109,9 @@ export class XYK extends RuntimeModule<XYKConfig> {
       ).value
     );
 
-    this.tokenRegistry.addTokenPair(tokenAId, tokenBId, Bool(true), Bool(true));
+    const success = this.tokenRegistry.addTokenPair(tokenAId, tokenBId, Bool(true), Bool(true));
+    assert(success, errors.poolLbpAlreadyExists());
+
     this.balances.mintAndIncrementSupply(
       lpTokenId,
       creator,
