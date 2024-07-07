@@ -375,34 +375,6 @@ describe("lbp", () => {
       expect(resultDecreasedNearEnd?.toString()).toEqual("68000");
     });
 
-    // it("should calculate amount out", async () => {
-    //   await drip(appChain, alicePrivateKey, tokenAId, tokenAInitialLiquidity, {
-    //     nonce: nonce++,
-    //   });
-    //   await drip(appChain, alicePrivateKey, tokenBId, tokenBInitialLiquidity, {
-    //     nonce: nonce++,
-    //   });
-
-    //   await createPoolSigned(
-    //     appChain,
-    //     alicePrivateKey,
-    //     tokenAId,
-    //     tokenBId,
-    //     tokenAInitialLiquidity,
-    //     tokenBInitialLiquidity,
-    //     start,
-    //     end,
-    //     initialWeight,
-    //     finalWeight,
-    //     feeLBP,
-    //     bob,
-    //     repayTarget,
-    //     { nonce: nonce++ }
-    //   );
-
-    //   await appChain.produceBlock();
-    // });
-
   });
 
   describe("sell", () => {
@@ -483,11 +455,6 @@ describe("lbp", () => {
         tokenBId,
         alice
       );
-
-      Provable.log("balances", {
-        balanceA,
-        balanceB,
-      });
 
       expect(balanceA?.toString()).toEqual("1000020");
       expect(balanceB?.toString()).toEqual("999900");
@@ -624,6 +591,36 @@ describe("lbp", () => {
       const { pool: poolxyk, liquidity: liquidityxyk } = await queryPoolXyk(appChain, tokenAId, tokenBId);
       expect(liquidityxyk.tokenA?.toBigInt()).toBeGreaterThan(100n);
       expect(liquidityxyk.tokenB?.toBigInt()).toBeGreaterThan(100n);
+    });
+  });
+
+  describe("fee", () => {
+
+    it("fee calculations should work", async () => {
+      // test import"ed from hydra dx node test
+      let defaultFee = new FeeLBP({ fee0: UInt64.from(2), fee1: UInt64.from(1000) });
+
+      expect(lbp.calculatePoolTradeFee(UInt64.from(1000), defaultFee.fee0, defaultFee.fee1).toBigInt()).toEqual(2n);
+      expect(lbp.calculatePoolTradeFee(UInt64.from(1_000_000_000_000), defaultFee.fee0, defaultFee.fee1).toBigInt()).toEqual(2_000_000_000n);
+
+      let tenPercentFee = new FeeLBP({ fee0: UInt64.from(1), fee1: UInt64.from(10) });
+
+      expect(lbp.calculatePoolTradeFee(UInt64.from(1000), tenPercentFee.fee0, tenPercentFee.fee1).toBigInt()).toEqual(100n);
+      expect(lbp.calculatePoolTradeFee(UInt64.from(1_000_000_000_000), tenPercentFee.fee0, tenPercentFee.fee1).toBigInt()).toEqual(100_000_000_000n);
+
+      let maxAmount = UInt64.MAXINT();
+      let maxFee = new FeeLBP({ fee0: UInt64.from(1), fee1: UInt64.from(1) });
+
+      expect(lbp.calculatePoolTradeFee(maxAmount, maxFee.fee0, maxFee.fee1).toBigInt()).toEqual(maxAmount.toBigInt());
+      expect(lbp.calculatePoolTradeFee(UInt64.from(1_000), maxFee.fee0, maxFee.fee1).toBigInt()).toEqual(1_000n);
+
+      expect(lbp.calculatePoolTradeFee(UInt64.zero, defaultFee.fee0, defaultFee.fee1).toBigInt()).toEqual(0n);
+
+      let zeroFee = new FeeLBP({ fee0: UInt64.zero, fee1: UInt64.zero });
+      expect(lbp.calculatePoolTradeFee(UInt64.from(1000), zeroFee.fee0, zeroFee.fee1).toBigInt()).toEqual(0n);
+      expect(lbp.calculatePoolTradeFee(UInt64.from(1_000_000_000_000), zeroFee.fee0, zeroFee.fee1).toBigInt()).toEqual(0n);
+      expect(lbp.calculatePoolTradeFee(UInt64.from(1_000_000_000_000), zeroFee.fee0, UInt64.from(1)).toBigInt()).toEqual(0n);
+
     });
   });
 });
