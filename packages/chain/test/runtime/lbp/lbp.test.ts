@@ -597,7 +597,7 @@ describe("lbp", () => {
   describe("fee", () => {
 
     it("fee calculations should work", async () => {
-      // test import"ed from hydra dx node test
+      // test imported from hydra dx node test
       let defaultFee = new FeeLBP({ fee0: UInt64.from(2), fee1: UInt64.from(1000) });
 
       expect(lbp.calculatePoolTradeFee(UInt64.from(1000), defaultFee.fee0, defaultFee.fee1).toBigInt()).toEqual(2n);
@@ -609,6 +609,9 @@ describe("lbp", () => {
       expect(lbp.calculatePoolTradeFee(UInt64.from(1_000_000_000_000), tenPercentFee.fee0, tenPercentFee.fee1).toBigInt()).toEqual(100_000_000_000n);
 
       let maxAmount = UInt64.MAXINT();
+      expect(lbp.calculatePoolTradeFee(maxAmount, defaultFee.fee0, defaultFee.fee1).toBigInt()).toEqual(36893488147419102n);
+      expect(lbp.calculatePoolTradeFee(maxAmount, tenPercentFee.fee0, tenPercentFee.fee1).toBigInt()).toEqual(1844674407370955161n);
+
       let maxFee = new FeeLBP({ fee0: UInt64.from(1), fee1: UInt64.from(1) });
 
       expect(lbp.calculatePoolTradeFee(maxAmount, maxFee.fee0, maxFee.fee1).toBigInt()).toEqual(maxAmount.toBigInt());
@@ -620,6 +623,10 @@ describe("lbp", () => {
       expect(lbp.calculatePoolTradeFee(UInt64.from(1000), zeroFee.fee0, zeroFee.fee1).toBigInt()).toEqual(0n);
       expect(lbp.calculatePoolTradeFee(UInt64.from(1_000_000_000_000), zeroFee.fee0, zeroFee.fee1).toBigInt()).toEqual(0n);
       expect(lbp.calculatePoolTradeFee(UInt64.from(1_000_000_000_000), zeroFee.fee0, UInt64.from(1)).toBigInt()).toEqual(0n);
+
+
+      let urealisticFee = new FeeLBP({ fee0: UInt64.from(1), fee1: UInt64.MAXINT() });
+      expect(lbp.calculatePoolTradeFee(maxAmount, urealisticFee.fee0, urealisticFee.fee1).toBigInt()).toEqual(1n);
 
     });
   });
